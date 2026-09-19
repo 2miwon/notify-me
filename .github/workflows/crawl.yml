@@ -1,0 +1,43 @@
+name: Crawl Events
+
+on:
+  schedule:
+    # Every 15 minutes, 24/7. GitHub Actions cron is always UTC.
+    - cron: "*/30 * * * *"
+  workflow_dispatch: {}
+
+concurrency:
+  group: crawl
+  cancel-in-progress: false
+
+jobs:
+  crawl:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      # Only checked out for config/keywords.yaml — no Go toolchain here,
+      # the binary comes pre-built from build.yml's "latest" release.
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            config
+
+      - name: Download crawler binary
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release download latest --repo "${{ github.repository }}" --pattern crawler --clobber
+          chmod +x crawler
+
+      - name: Run crawler
+        env:
+          # Only the secrets for whichever STORE_BACKEND you actually use
+          # need to exist — an unset secret just resolves to an empty
+          # string here, which the crawler already treats as "not set".
+          STORE_BACKEND: ${{ secrets.STORE_BACKEND }}
+          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+          NOTION_DATABASE_ID: ${{ secrets.NOTION_DATABASE_ID }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          GOOGLE_SHEETS_SPREADSHEET_ID: ${{ secrets.GOOGLE_SHEETS_SPREADSHEET_ID }}
+          GOOGLE_SHEETS_SHEET_NAME: ${{ secrets.GOOGLE_SHEETS_SHEET_NAME }}
+        run: ./crawler

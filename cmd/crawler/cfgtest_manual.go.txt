@@ -1,0 +1,16 @@
+package main
+
+import (
+	"fmt"
+
+	"github.com/2miwon/notify-me/internal/config"
+)
+
+func main() {
+	cfg, err := config.Load("config/keywords.yaml")
+	if err != nil {
+		panic(err)
+	}
+	sc := cfg.Sites["netflix"]
+	fmt.Printf("netflix locations=%v devOnly=%v\n", sc.NetflixLocations, sc.NetflixDevOnly)
+}

@@ -1,0 +1,348 @@
+# Crawler filter config. Edit this file (no code changes needed) and
+# commit it — GitHub Actions reads the version on the branch it runs.
+# A posting only gets saved if it passes every filter below.
+
+# Only store Seoul roles. This is intentionally fail-closed: when a source
+# does not provide a location, the crawler does not assume that it is Seoul.
+#
+# TEMPORARILY DISABLED (2026-09-18): turning this on just caused a mass
+# false-expiry incident. Root cause: several adapters (daangn, kakao,
+# kakaobank, line, and effectively nhn — see its Location bug) never
+# populate job.Posting.Location at all, so MatchesLocation("") fails
+# closed for every one of their postings; and naver/navercloud legitimately
+# report "분당"/"세종" (their real office is Bundang/Pangyo, not literally
+# Seoul), which don't contain "서울"/"Seoul" as a substring either. Every
+# previously-stored posting from those sites got swept as "expired" and
+# archived in one run. Notion archives (soft-deletes) rather than hard-
+# deletes, so nothing already affected is permanently gone — but leave
+# this off until every adapter above actually sets a real Location and the
+# allow-list below covers where these companies really are (Bundang/
+# Pangyo included), or this will happen again on the next crawl.
+# locations:
+#   - "서울"
+#   - "Seoul"
+locations: []
+
+# Keep only postings whose title contains at least one of these
+# (case-insensitive substring, OR'd together). Empty = no restriction.
+keywords: []
+
+# Always drop a posting whose title contains any of these, even if it
+# also matched `keywords` above. Empty = nothing excluded.
+# Example: exclude_keywords: ["인턴", "체험형"]
+# This applies across every site, so it's also where a background filter
+# (e.g. "I'm 컴공, not 전전") belongs — Nvidia in particular files chip/
+# hardware-design roles (ASIC, silicon validation, mechanical) under the
+# same broad "Engineering" bucket as software roles, so there's no clean
+# department-level split to filter on there; a title-keyword exclude is
+# the reliable way to drop those without also risking a real SW posting.
+exclude_keywords:
+  - "Hardware Engineer"
+  - "Mechanical Engineer"
+  - "Electrical Engineer"
+  - "ASIC"
+  - "VLSI"
+  - "Silicon"
+  - "Circuit"
+  - "PCB"
+  - "RF Engineer"
+  - "Analog"
+  - "Semiconductor Process"
+  - "Chip Design"
+  - "IC Design"
+  - "IC Test"
+
+# Keep only postings whose employment type is in this list. Normalized to
+# one vocabulary across sites — "Full-time", "Contract", "Internship",
+# "Temporary" — so this one list applies everywhere; no need to also list
+# a site's own native label (see internal/site/naver's employmentTypeNames
+# for how each adapter maps onto this set). Empty = no restriction. A site
+# that doesn't report employment type at all (e.g. wanted) is never
+# affected by this filter either way.
+# Example, to only get full-time roles: employment_types: ["Full-time"]
+employment_types: []
+
+# Same idea for career level (naver values: "신입", "경력", "무관"; line
+# only ever reports "신입" via its "(Entry level)" employment-type suffix,
+# otherwise leaves this blank).
+# Example, to skip new-grad postings: career_levels: ["경력", "무관"]
+career_levels: []
+
+# Bound job.Posting's own (best-effort) extracted years-of-experience
+# requirement — see internal/job/experience.go for how that's guessed
+# from each posting's title/description; it's free text, so this is an
+# approximation, not a guaranteed-accurate parse. Either bound may be
+# omitted (commented out = unbounded on that side); a posting with no
+# extractable years value always passes regardless of these settings.
+# Example, to only see senior-level (10+ years) postings:
+#   min_years_experience: 10
+# Example, to only see postings you're not overqualified for:
+#   max_years_experience: 3
+# min_years_experience: 0
+# max_years_experience: 99
+
+# Keep only postings with one of these extracted minimum degree requirements.
+# Canonical values: High School, Associate, Bachelor, Master, Doctorate.
+# Korean shorthand (학사, 석사, 박사) works too. Empty = no restriction;
+# postings with no recognizable degree requirement always pass.
+# Example: minimum_degrees: ["Bachelor", "Master", "Doctorate"]
+minimum_degrees: []
+
+# Per-site crawl settings. Only sites listed here are actually crawled —
+# remove a block (or comment it out) to stop crawling that site without
+# deleting its adapter code.
+sites:
+  microsoft:
+    # Location submitted to apply.careers.microsoft.com's own search —
+    # not a text query. A keyword search for "seoul" only matches
+    # postings whose title/location literally says "Seoul", which misses
+    # real Korea postings elsewhere (Busan's data-center build-out roles
+    # say "Busan", never "Seoul"). "Korea, Multiple Locations, Multiple
+    # Locations" is the exact string the site's own location dropdown
+    # sends for "all of Korea" — copy it from the site if it ever changes.
+    microsoft_query: ""
+    microsoft_location: "Korea, Multiple Locations, Multiple Locations"
+    # A plain Korea-wide location search returns mostly non-dev postings
+    # (sales, customer success, procurement, facilities all outnumber the
+    # actual engineering roles) — see internal/site/microsoft's
+    # devRelated for exactly what this keeps and why.
+    microsoft_dev_only: true
+  # Apple Korea software and services search. The common Seoul-only filter
+  # above remains authoritative for each returned job location.
+  apple:
+    # Location code from jobs.apple.com/en-us/search?location=...
+    apple_location_code: "south-korea-KOR"
+    max_pages: 0
+
+  amazon:
+    # category[]/location[] values, exactly as given, from
+    # amazon.jobs/en/search — the global `locations` filter above is
+    # also authoritative here.
+    amazon_categories:
+      - "solutions-architect"
+      - "operations-it-support-engineering"
+    amazon_locations:
+      - "seoul-south-korea"
+  # GreetingHR (그리팅)-hosted career sites — see internal/site/greetinghr.
+  # list_path is the filtered listing page's own path+query, copied
+  # straight from the site: visit its careers page, apply whatever filter
+  # you want, and paste the resulting path+query here as-is (each company
+  # names its own filter param differently, e.g. "jobs" vs "occupations").
+  kakaomobility:
+    greetinghr_subdomain: "kakaomobility"
+    greetinghr_list_path: "/ko/guide?jobs=%EA%B0%9C%EB%B0%9C"
+    greetinghr_company: "카카오모빌리티"
+
+  kakaopay:
+    greetinghr_subdomain: "kakaopay"
+    greetinghr_list_path: "/ko/main?occupations=%EA%B8%B0%EC%88%A0"
+    greetinghr_company: "카카오페이"
+
+  # Same GreetingHR platform, but on Upstage's own custom domain instead
+  # of the default <subdomain>.career.greetinghr.com origin — hence
+  # greetinghr_base_url. occupations=Tech is this site's own top-level
+  # split and it's a clean one: every actual engineering/AI role (backend,
+  # DevOps, AI research, solutions architecture) sits under "Tech", while
+  # Business/Education/Growth OPS/Design (marketing, PM, sales, finance,
+  # PR, education ops) sit elsewhere — confirmed by listing all 53 open
+  # roles and their occupation before choosing this filter.
+  upstage:
+    greetinghr_subdomain: "upstage"
+    greetinghr_base_url: "https://careers.upstage.ai"
+    greetinghr_list_path: "/ko/upstage?occupations=Tech"
+    greetinghr_company: "Upstage"
+
+  # Kakao Pay Securities — separate legal entity from Kakao Pay, on a
+  # different ATS platform (NineHire, not GreetingHR). Its unfiltered
+  # listing is mostly non-dev (구매/인사/고객지원/마케팅/재무 outnumber the
+  # engineering job groups) — see internal/site/ninehire's devRelated.
+  kakaopaysec:
+    ninehire_subdomain: "kakaopaysec"
+    ninehire_company_id: "54c7edd0-1f8a-11ed-bd78-476d9de76402"
+    ninehire_company: "카카오페이증권"
+    ninehire_dev_only: true
+
+  # Snowflake's own careers.snowflake.com is a heavy Phenom widget page
+  # (results embedded in a large inline JSON blob, no clean endpoint) —
+  # but its "Apply" button links to jobs.ashbyhq.com/snowflake, so this
+  # goes through internal/site/ashby (same platform openai.go uses)
+  # instead. No hidden "APAC"/"Asia-Pacific"-only postings exist outside
+  # these two exact strings — checked: every remote posting in Ashby's
+  # data is tagged with a specific country, never a bare "APAC"/"Asia-
+  # Pacific-Remote", so this fully covers what those broader checkboxes
+  # on the site would have added.
+  snowflake:
+    ashby_company_slug: "snowflake"
+    ashby_company: "Snowflake"
+    ashby_locations:
+      - "KR-Seoul"
+      - "KR-South Korea-Remote"
+
+  sap:
+    # Filtered search path+query from jobs.sap.com, copied verbatim.
+    sap_list_path: "/go/Technology-Jobs-in-Seoul/918101/join?q=&sortColumn=sort_location&sortDirection=asc"
+    # A location-only SAP search returns Sales/Presales roles right
+    # alongside the actual dev roles — see internal/site/sap's devRelated.
+    sap_dev_only: true
+
+  nvidia:
+    # Search query/location submitted to jobs.nvidia.com — the global
+    # `locations` filter above still gates results down to Seoul.
+    nvidia_query: ""
+    nvidia_location: "Korea"
+
+  netflix:
+    # Exact string from explore.jobs.netflix.net's own location filter.
+    netflix_locations:
+      - "Seoul, Korea, Republic of"
+    # Netflix's own `department` field isn't a clean dev/non-dev split
+    # (real dev roles land in "Data & Insights" next to non-dev analyst
+    # roles, for example) — this keeps only postings that pass a
+    # recall-biased department+title check. See internal/site/netflix's
+    # devRelated doc comment for exactly what that means and why.
+    netflix_dev_only: true
+
+  naver:
+    # Category codes from recruit.navercorp.com. Tick the filters you
+    # want on https://recruit.navercorp.com/rcrt/list.do and read them
+    # back out of the resulting URL's subJobCdArr param. This set is
+    # every Tech sub-category (Frontend, Backend, Android, iOS, AI/ML,
+    # Data Engineering, Embedded SW, Graphics, Data Science, Hardware,
+    # Infra, Security, QA) as of when this was configured.
+    sub_job_codes:
+      - "1010001"
+      - "1010004"
+      - "1010005"
+      - "1010006"
+      - "1010007"
+      - "1010008"
+      - "1010009"
+      - "1010020"
+      - "1020001"
+      - "1030001"
+      - "1030002"
+      - "1040001"
+      - "1040002"
+      - "1040003"
+      - "1060001"
+
+  # NAVER Cloud operates its own recruitment domain and listing API.
+  navercloud:
+    navercloud_job_groups:
+      - "Tech"
+
+  # NHN Careers' Tech group from the supplied recruit URL.
+  nhn:
+    nhn_job_group_id: "3645799730550663017"
+
+  # OpenAI's careers UI is backed by Ashby. openai_departments used to be
+  # a curated allow-list of "technical" department names, but it's an
+  # exact-string match (internal/site/openai's matches()) against
+  # whatever OpenAI happens to file each posting under — and OpenAI files
+  # "Applied AI Engineer"/"Applied AI Architect" (Seoul) under department
+  # "Go To Market", not "Applied AI", so the curated list silently
+  # excluded them from every fetch, which then read as "gone from the
+  # site" and got them expired/archived even though they were still open.
+  # Left empty (no department filter) so a taxonomy mismatch like that
+  # can only ever add a posting you'd filter out yourself (e.g. a Sales
+  # or Marketing title), never silently drop a real one. Location is the
+  # only filter left, and it's reliable — Ashby's own location string
+  # literally contains "Seoul, South Korea".
+  openai:
+    openai_departments: []
+    openai_locations:
+      - "Seoul, South Korea"
+
+  # Exact supplied Google Careers filters: South Korea, Early,
+  # Intern/Apprentice, and Bachelor's. No job-title allow-list is used.
+  google: {}
+
+  # Authenticated with YONSEI_ID/YONSEI_PW at runtime. Only the supplied
+  # tabType=reco (추천채용) listing is crawled.
+  yonsei: {}
+
+  line:
+    # Filter values from careers.linecorp.com. Tick the filters you want
+    # on https://careers.linecorp.com/ko/jobs and read them back out of
+    # the URL's fi/ci/co params. Each list is OR'd within itself and
+    # AND'd across the three — matches the site's own filter semantics.
+    job_fields:
+      - "Server-side"
+      - "Data Engineering"
+      - "Security Engineering"
+      - "System Engineering"
+      - "Web Development"
+    cities:
+      - "Gwacheon"
+      - "Bundang"
+      - "Seoul"
+    regions:
+      - "East Asia"
+
+  kakaobank:
+    # Values copied from the recruitClassNames/recruitEmployeeTypes query
+    # parameters on https://recruit.kakaobank.com/jobs. Empty lists mean
+    # no filtering for that dimension.
+    recruit_class_names:
+      - "AI"
+      - "Core Banking"
+      - "Data"
+      - "Engineering"
+      - "Security"
+      - "Server"
+    recruit_employee_types:
+      - "정규직"
+      - "계약직"
+      - "인턴"
+
+  kakao:
+    # Mirrors https://careers.kakao.com/jobs?company=KAKAO&part=TECHNOLOGY
+    # Empty skill-set/employee-type values mean all values in those filters.
+    kakao_company: "KAKAO"
+    kakao_part: "TECHNOLOGY"
+    kakao_skill_set: ""
+    kakao_employee_type: ""
+
+  woowahan:
+    # Mirrors the supplied Baemin/우아한형제들 recruitment URL. These are
+    # the API's job-group and job-code values; either list may be empty to
+    # remove that filter.
+    woowahan_job_group_codes:
+      - "BA005001"
+    woowahan_job_codes:
+      - "BA007007"
+      - "BA007009"
+      - "BA007005"
+
+  coupang:
+    # Matches the supplied search URL: selected departments in Seoul.
+    # Empty lists remove that dimension's filter.
+    coupang_locations:
+      - "Seoul, South Korea"
+    coupang_departments:
+      - "Cloud Platform"
+      - "Corporate IT"
+      - "eCommerce Product"
+      - "Product UX"
+      - "Search and Discovery"
+
+  daangn:
+    # Department slugs from the supplied division=tech:<slug>,... URL.
+    daangn_department_slugs:
+      - "network"
+      - "security"
+      - "software-engineer"
+      - "software-engineer-backend"
+      - "software-engineer-frontend"
+      - "software-engineer-machine-learning"
+
+  # https://www.dunamu.com/careers/jobs?category=engineering
+  dunamu: {}
+
+  # wanted:
+  #   # Category to crawl. Find the ID from the listing page URL, e.g.
+  #   # https://www.wanted.co.kr/wdlist/518 -> 518 ("개발" / Development).
+  #   job_group_id: 518
+  #   # Pages of 20 postings to fetch per run. 0 = no cap, fetch the whole
+  #   # listing every run — see the expiry-sweep note in README.md.
+  #   max_pages: 0

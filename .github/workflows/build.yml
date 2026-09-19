@@ -1,0 +1,41 @@
+name: Build crawler binary
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "cmd/**"
+      - "internal/**"
+      - "go.mod"
+      - "go.sum"
+      - ".github/workflows/build.yml"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write # needed to publish/update the "latest" release
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Build crawler
+        run: CGO_ENABLED=0 go build -o crawler ./cmd/crawler
+
+      # crawl.yml pulls the binary back out of this release on every
+      # scheduled run instead of rebuilding, so this is the only workflow
+      # that needs the Go toolchain.
+      - name: Publish to "latest" release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: Latest crawler build
+          body: Auto-published from ${{ github.sha }}. Not a versioned release — always overwritten by the next build.
+          prerelease: true
+          files: crawler
