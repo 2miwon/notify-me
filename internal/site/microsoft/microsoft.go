@@ -19,6 +19,7 @@ package microsoft
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -209,7 +210,34 @@ func devRelated(department, title string) bool {
 	return false
 }
 
+// getJSON retries on 429: fetching one detail page per posting with no
+// pacing reliably triggers rate limiting partway through a run (measured
+// ~50% of detail fetches failing this way on a live crawl), which for a
+// "lesser failure than losing the posting" fallback silently means half
+// the postings end up with no description/employment type at all rather
+// than an actual fetch error. A few retries with backoff clears the
+// large majority of these without needing to slow down every request.
 func (a *Adapter) getJSON(url string, out interface{}) error {
+	const maxAttempts = 4
+	backoff := 500 * time.Millisecond
+
+	var lastErr error
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		err := a.getJSONOnce(url, out)
+		if err == nil {
+			return nil
+		}
+		lastErr = err
+		if !isRetryable(err) || attempt == maxAttempts {
+			break
+		}
+		time.Sleep(backoff)
+		backoff *= 2
+	}
+	return lastErr
+}
+
+func (a *Adapter) getJSONOnce(url string, out interface{}) error {
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
 		return err
@@ -225,10 +253,22 @@ func (a *Adapter) getJSON(url string, out interface{}) error {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("unexpected status %d", resp.StatusCode)
+		return &statusError{code: resp.StatusCode}
 	}
 	if err := json.NewDecoder(resp.Body).Decode(out); err != nil {
 		return fmt.Errorf("decode response: %w", err)
 	}
 	return nil
+}
+
+type statusError struct{ code int }
+
+func (e *statusError) Error() string { return fmt.Sprintf("unexpected status %d", e.code) }
+
+func isRetryable(err error) bool {
+	var se *statusError
+	if !errors.As(err, &se) {
+		return false
+	}
+	return se.code == http.StatusTooManyRequests || se.code >= 500
 }

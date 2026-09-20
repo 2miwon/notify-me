@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -43,6 +44,38 @@ const (
 // workAreaNames maps the site's work-area codes to their display names.
 // Read off the "근무지" filter checkboxes on the list page; there are
 // only five and they're effectively static (Naver's own campuses).
+// sisterCompanyHosts maps a Naver-group affiliate's sysCompanyCdNm to its
+// own separate careers domain. recruit.navercorp.com's Tech search
+// cross-lists these affiliates' postings, but the jobDetailLink it
+// returns for them still points at navercorp.com's own
+// rcrt/view.do?annoId=..., which just falls back to a generic listing
+// instead of the actual posting — confirmed live by visiting one. Each
+// affiliate turns out to run the exact same view.do?annoId=... path on
+// its own domain, so swapping just the host is enough; NAVER Cloud
+// resolves to the same domain internal/site/navercloud already crawls
+// directly, which is harmless (Store dedupes by URL either way).
+var sisterCompanyHosts = map[string]string{
+	"NAVER LABS":    "recruit.naverlabs.com",
+	"NAVER WEBTOON": "recruit.webtoonscorp.com",
+	"NAVER Cloud":   "recruit.navercloudcorp.com",
+}
+
+// sisterCompanyDetailLink rewrites link's host to the affiliate's own
+// domain when companyName names one, leaving genuine NAVER links (and
+// anything unrecognized) untouched.
+func sisterCompanyDetailLink(link, companyName string) string {
+	host, ok := sisterCompanyHosts[companyName]
+	if !ok {
+		return link
+	}
+	u, err := url.Parse(link)
+	if err != nil {
+		return link
+	}
+	u.Host = host
+	return u.String()
+}
+
 var workAreaNames = map[string]string{
 	"0010": "분당",
 	"0020": "서울",
@@ -139,7 +172,7 @@ func (a *Adapter) Fetch() ([]job.Posting, error) {
 				ExternalID:     strconv.Itoa(item.AnnoID),
 				Title:          item.AnnoSubject,
 				Company:        item.SysCompanyCdNm,
-				URL:            item.JobDetailLink,
+				URL:            sisterCompanyDetailLink(item.JobDetailLink, item.SysCompanyCdNm),
 				Location:       workAreaNames[item.WorkAreaCd],
 				EmploymentType: canonicalEmploymentType(item.EmpTypeCdNm),
 				CareerLevel:    item.EntTypeCdNm,

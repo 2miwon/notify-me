@@ -10,6 +10,7 @@ package nvidia
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -151,7 +152,42 @@ func (a *Adapter) fetchDetail(positionID int64) (*detailResponse, error) {
 	return &out, nil
 }
 
+// getJSON retries on 429 — see internal/site/microsoft's getJSON doc:
+// same platform, same rate-limit-under-load risk when fetching one
+// detail page per posting with no pacing.
 func (a *Adapter) getJSON(url string, out interface{}) error {
+	const maxAttempts = 4
+	backoff := 500 * time.Millisecond
+
+	var lastErr error
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		err := a.getJSONOnce(url, out)
+		if err == nil {
+			return nil
+		}
+		lastErr = err
+		if !isRetryable(err) || attempt == maxAttempts {
+			break
+		}
+		time.Sleep(backoff)
+		backoff *= 2
+	}
+	return lastErr
+}
+
+type statusError struct{ code int }
+
+func (e *statusError) Error() string { return fmt.Sprintf("unexpected status %d", e.code) }
+
+func isRetryable(err error) bool {
+	var se *statusError
+	if !errors.As(err, &se) {
+		return false
+	}
+	return se.code == http.StatusTooManyRequests || se.code >= 500
+}
+
+func (a *Adapter) getJSONOnce(url string, out interface{}) error {
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
 		return err
@@ -167,7 +203,7 @@ func (a *Adapter) getJSON(url string, out interface{}) error {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("unexpected status %d", resp.StatusCode)
+		return &statusError{code: resp.StatusCode}
 	}
 	if err := json.NewDecoder(resp.Body).Decode(out); err != nil {
 		return fmt.Errorf("decode response: %w", err)

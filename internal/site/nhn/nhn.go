@@ -209,8 +209,22 @@ func employmentType(raw string) string {
 	}
 }
 
+// nhnDateLayout matches the API's own datetime strings (e.g.
+// "2026-09-16T16:00:00") — no timezone offset, unlike time.RFC3339.
+// Parsing these with RFC3339 always fails silently (parseTime discards
+// the error), which meant PostedAt was never anything but "now" and
+// ApplicationStart/ApplicationDeadline were never set at all. NHN's
+// postings are all Korea-based (see internal/site/nhn's package doc),
+// so treat the timestamp as KST.
+const nhnDateLayout = "2006-01-02T15:04:05"
+
+var kst = time.FixedZone("KST", 9*60*60)
+
 func parseTime(value string) time.Time {
-	t, _ := time.Parse(time.RFC3339, value)
+	t, err := time.ParseInLocation(nhnDateLayout, value, kst)
+	if err != nil {
+		return time.Time{}
+	}
 	return t
 }
 
