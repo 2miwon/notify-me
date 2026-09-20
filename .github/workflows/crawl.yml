@@ -40,4 +40,31 @@ jobs:
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
           GOOGLE_SHEETS_SPREADSHEET_ID: ${{ secrets.GOOGLE_SHEETS_SPREADSHEET_ID }}
           GOOGLE_SHEETS_SHEET_NAME: ${{ secrets.GOOGLE_SHEETS_SHEET_NAME }}
-        run: ./crawler
+        run: |
+          set +e
+          ./crawler 2>&1 | tee crawler.log
+          exit_code="${PIPESTATUS[0]}"
+
+          # Surface every per-site error as a visible (but non-failing)
+          # annotation on the run — some sites (dunamu, at least) are
+          # blocked from GitHub Actions' own IP ranges specifically, not
+          # broken, and one such site shouldn't turn every scheduled run
+          # red and drown out an actual regression. A run only stays
+          # failed if it never reached the final "done:" summary line at
+          # all (config/store setup failed, or every site failed) —
+          # anything that got that far ran to completion and just wants
+          # its errors on record.
+          while IFS= read -r line; do
+            if [[ "$line" == *"ERROR:"* ]]; then
+              echo "::warning::${line#*ERROR: }"
+            fi
+          done < crawler.log
+
+          if [ "$exit_code" -ne 0 ]; then
+            if grep -q "done: fetched=" crawler.log; then
+              echo "::warning::Crawl finished with site errors above — see this run's warnings."
+              exit 0
+            fi
+            echo "::error::Crawler exited before finishing a run (config/store setup failure) — see the log."
+            exit "$exit_code"
+          fi
