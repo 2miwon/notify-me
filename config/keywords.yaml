@@ -178,6 +178,40 @@ sites:
       - "KR-Seoul"
       - "KR-South Korea-Remote"
 
+  # Channel Talk (채널톡) — on Lever (slug "zoyi", from jobs.lever.co/zoyi/...).
+  # team=Engineering is a clean split confirmed against the board's own
+  # data (unlike Moloco below, no dev work hides under other team names).
+  channeltalk:
+    lever_company_slug: "zoyi"
+    lever_company: "채널톡"
+    lever_countries:
+      - "KR"
+    lever_teams:
+      - "Engineering"
+
+  # Sendbird — on Greenhouse (slug "sendbird"), confirmed via the site's
+  # own network calls even though its current careers site (delight.ai)
+  # doesn't show it directly. Only 9 total postings company-wide, so a
+  # location substring is enough on its own.
+  sendbird:
+    greenhouse_company_slug: "sendbird"
+    greenhouse_company: "Sendbird"
+    greenhouse_locations:
+      - "Seoul"
+    greenhouse_dev_only: true
+
+  # Moloco — on Greenhouse (slug "moloco"). Its Seoul postings spread
+  # engineering work across several oddly-named departments (Ads
+  # Quality, Ads Platform, MCM Quality, Moloco Next, plain Engineering)
+  # with no clean single department to allow-list, so this leans on
+  # internal/site/greenhouse's title-keyword devRelated instead.
+  moloco:
+    greenhouse_company_slug: "moloco"
+    greenhouse_company: "Moloco"
+    greenhouse_locations:
+      - "Seoul"
+    greenhouse_dev_only: true
+
   sap:
     # Filtered search path+query from jobs.sap.com, copied verbatim.
     sap_list_path: "/go/Technology-Jobs-in-Seoul/918101/join?q=&sortColumn=sort_location&sortDirection=asc"
@@ -266,16 +300,25 @@ sites:
     # on https://careers.linecorp.com/ko/jobs and read them back out of
     # the URL's fi/ci/co params. Each list is OR'd within itself and
     # AND'd across the three — matches the site's own filter semantics.
+    #
+    # job_fields deliberately excludes QA/SET and Tech Management (non-
+    # dev). "Infra" (DevOps/SRE/Network Engineer roles) was missing here
+    # even though it's a real Engineering-unit field — confirmed against
+    # the site's own job data, where it was the only gap versus every
+    # other Engineering field actually in use.
     job_fields:
       - "Server-side"
       - "Data Engineering"
       - "Security Engineering"
       - "System Engineering"
       - "Web Development"
+      - "Infra"
+    # Seoul dropped: LINE Korea's real offices are Bundang/Gwacheon, not
+    # literally Seoul — confirmed zero Engineering postings ever tagged
+    # "Seoul" in the site's own data (same situation as Naver/NHN).
     cities:
       - "Gwacheon"
       - "Bundang"
-      - "Seoul"
     regions:
       - "East Asia"
 

@@ -39,9 +39,11 @@ import (
 	"github.com/2miwon/notify-me/internal/site/daangn"
 	"github.com/2miwon/notify-me/internal/site/dunamu"
 	"github.com/2miwon/notify-me/internal/site/google"
+	"github.com/2miwon/notify-me/internal/site/greenhouse"
 	"github.com/2miwon/notify-me/internal/site/greetinghr"
 	"github.com/2miwon/notify-me/internal/site/kakao"
 	"github.com/2miwon/notify-me/internal/site/kakaobank"
+	"github.com/2miwon/notify-me/internal/site/lever"
 	"github.com/2miwon/notify-me/internal/site/line"
 	"github.com/2miwon/notify-me/internal/site/microsoft"
 	"github.com/2miwon/notify-me/internal/site/naver"
@@ -282,6 +284,15 @@ func buildAdapters(cfg *config.Config) []site.Adapter {
 	}
 	if sc, ok := cfg.Sites["snowflake"]; ok {
 		adapters = append(adapters, ashby.New(sc.AshbyCompanySlug, sc.AshbyCompany, sc.AshbyLocations))
+	}
+	if sc, ok := cfg.Sites["channeltalk"]; ok {
+		adapters = append(adapters, lever.New(sc.LeverCompanySlug, sc.LeverCompany, sc.LeverCountries, sc.LeverTeams))
+	}
+	if sc, ok := cfg.Sites["sendbird"]; ok {
+		adapters = append(adapters, greenhouse.New(sc.GreenhouseCompanySlug, sc.GreenhouseCompany, sc.GreenhouseLocations, sc.GreenhouseDevOnly))
+	}
+	if sc, ok := cfg.Sites["moloco"]; ok {
+		adapters = append(adapters, greenhouse.New(sc.GreenhouseCompanySlug, sc.GreenhouseCompany, sc.GreenhouseLocations, sc.GreenhouseDevOnly))
 	}
 	if _, ok := cfg.Sites["yonsei"]; ok && yonsei.Configured() {
 		adapters = append(adapters, yonsei.New())

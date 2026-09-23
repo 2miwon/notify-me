@@ -130,6 +130,21 @@ type SiteConfig struct {
 	AshbyCompanySlug string   `yaml:"ashby_company_slug"`
 	AshbyCompany     string   `yaml:"ashby_company"`
 	AshbyLocations   []string `yaml:"ashby_locations"`
+
+	// lever: company slug + exact country/team allow-lists against
+	// api.lever.co's public postings API — see internal/site/lever.
+	LeverCompanySlug string   `yaml:"lever_company_slug"`
+	LeverCompany     string   `yaml:"lever_company"`
+	LeverCountries   []string `yaml:"lever_countries"`
+	LeverTeams       []string `yaml:"lever_teams"`
+
+	// greenhouse: company slug + location allow-list against
+	// boards-api.greenhouse.io's public Job Board API — see
+	// internal/site/greenhouse.
+	GreenhouseCompanySlug string   `yaml:"greenhouse_company_slug"`
+	GreenhouseCompany     string   `yaml:"greenhouse_company"`
+	GreenhouseLocations   []string `yaml:"greenhouse_locations"`
+	GreenhouseDevOnly     bool     `yaml:"greenhouse_dev_only"`
 }
 
 type Config struct {
