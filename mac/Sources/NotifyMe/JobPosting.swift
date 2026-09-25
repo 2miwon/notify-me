@@ -19,6 +19,7 @@ struct JobPosting: Identifiable, Hashable {
     var seen: Bool
     var bookmarked: Bool
     var hidden: Bool
+    var applied: Bool
     let expired: Bool
 
     // Optional — empty/nil for a site whose adapter doesn't report this
@@ -63,6 +64,31 @@ struct JobPosting: Identifiable, Hashable {
         if days > 0 { return "D-\(days)" }
         if days == 0 { return "D-DAY" }
         return "D+\(-days)"
+    }
+}
+
+/// How postings the user has applied to are treated by the board.
+enum AppliedFilter: String, CaseIterable, Identifiable {
+    case all          // applied postings stay mixed in with everything else
+    case notApplied   // hide what's already been applied to
+    case appliedOnly  // a single cross-site "지원한 공고" collection
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .all: return "지원 포함"
+        case .notApplied: return "미지원만"
+        case .appliedOnly: return "지원한 공고"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .all: return "tray.full"
+        case .notApplied: return "tray"
+        case .appliedOnly: return "checkmark.seal"
+        }
     }
 }
 

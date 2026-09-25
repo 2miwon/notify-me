@@ -29,16 +29,21 @@ type Adapter struct {
 	// Teams is an exact-match allow-list (OR'd) against
 	// categories.team. Empty means no restriction.
 	Teams []string
+	// DevOnly keeps only postings whose team/department or title looks
+	// technical (job.IsDevCategory OR job.IsDevTitle) — for boards where
+	// engineering is spread over several team names.
+	DevOnly bool
 
 	client *http.Client
 }
 
-func New(companySlug, company string, countries, teams []string) *Adapter {
+func New(companySlug, company string, countries, teams []string, devOnly bool) *Adapter {
 	return &Adapter{
 		CompanySlug: companySlug,
 		Company:     company,
 		Countries:   countries,
 		Teams:       teams,
+		DevOnly:     devOnly,
 		client:      &http.Client{Timeout: 20 * time.Second},
 	}
 }
@@ -94,6 +99,9 @@ func (a *Adapter) Fetch() ([]job.Posting, error) {
 		if !matches(p.Country, a.Countries) || !matches(p.Categories.Team, a.Teams) {
 			continue
 		}
+		if a.DevOnly && !job.LooksDev(p.Text, p.Categories.Team, p.Categories.Department) {
+			continue
+		}
 		postedAt := time.Now().UTC()
 		var appStart *time.Time
 		if p.CreatedAt > 0 {
@@ -107,6 +115,7 @@ func (a *Adapter) Fetch() ([]job.Posting, error) {
 			Company:          a.Company,
 			URL:              p.HostedURL,
 			Location:         p.Categories.Location,
+			EmploymentType:   commitment(p.Categories.Commitment),
 			PostedAt:         postedAt,
 			ApplicationStart: appStart,
 			Description:      normalizeText(p.DescriptionPlain),
@@ -141,4 +150,20 @@ func matches(value string, allowed []string) bool {
 		}
 	}
 	return false
+}
+
+func commitment(raw string) string {
+	lower := strings.ToLower(raw)
+	switch {
+	case strings.Contains(lower, "intern"), strings.Contains(lower, "인턴"):
+		return "Internship"
+	case strings.Contains(lower, "contract"), strings.Contains(lower, "계약"):
+		return "Contract"
+	case strings.Contains(lower, "temporary"):
+		return "Temporary"
+	case strings.Contains(lower, "full"), strings.Contains(lower, "permanent"), strings.Contains(lower, "regular"), strings.Contains(lower, "정규"):
+		return "Full-time"
+	default:
+		return strings.TrimSpace(raw)
+	}
 }

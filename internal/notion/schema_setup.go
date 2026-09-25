@@ -27,6 +27,7 @@ var requiredProperties = map[string]string{
 	PropSeen:                "checkbox",
 	PropBookmarked:          "checkbox",
 	PropHidden:              "checkbox",
+	PropApplied:             "checkbox",
 	PropExpired:             "checkbox",
 	PropEmploymentType:      "select",
 	PropCareerLevel:         "select",

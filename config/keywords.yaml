@@ -212,6 +212,171 @@ sites:
       - "Seoul"
     greenhouse_dev_only: true
 
+  # Canonical (Ubuntu) — fully remote, on Greenhouse. Location isn't
+  # country-based here — it's region tags ("Home based - Worldwide" /
+  # "Home Based - APAC" / "Home based - EMEA"), confirmed against the
+  # live board. Worldwide and APAC are the two that actually cover Korea;
+  # EMEA/Americas-only roles are excluded on purpose.
+  canonical:
+    greenhouse_company_slug: "canonical"
+    greenhouse_company: "Canonical"
+    greenhouse_locations:
+      - "Worldwide"
+      - "APAC"
+    greenhouse_dev_only: true
+
+  # GitLab — fully remote, on Greenhouse. Unlike Canonical, GitLab tags
+  # remote roles by exact country ("Remote, South Korea") rather than by
+  # region — confirmed live: there's no broader APAC/Worldwide tag to
+  # catch instead, so this has to be the literal country string.
+  gitlab:
+    greenhouse_company_slug: "gitlab"
+    greenhouse_company: "GitLab"
+    greenhouse_locations:
+      - "South Korea"
+    greenhouse_dev_only: true
+
+  # Automattic — fully distributed (no offices at all), on its own
+  # WordPress-plugin-embedded job list rather than a guessable public
+  # Greenhouse board slug. No location field exists in that data at all
+  # (hire-from-anywhere by design), so there's nothing to filter there —
+  # see internal/site/automattic's package doc.
+  automattic:
+    automattic_dev_only: true
+
+  # Toss (비바리퍼블리카 + 계열사) — toss.im/career is backed by Greenhouse
+  # (slug "tosscareers"), ~580 postings nearly all "Seoul". Location casing
+  # varies ("Seoul"/"seoul") but the greenhouse filter is case-insensitive.
+  toss:
+    greenhouse_company_slug: "tosscareers"
+    greenhouse_company: "토스"
+    greenhouse_locations:
+      - "Seoul"
+      - "Korea"
+      - "Busan"
+      - "부산"
+    greenhouse_dev_only: true
+
+  # Krafton — Greenhouse slug "krafton" (Seoul HQ + Pangyo studios).
+  krafton:
+    greenhouse_company_slug: "krafton"
+    greenhouse_company: "크래프톤"
+    greenhouse_locations:
+      - "Seoul"
+      - "Pangyo"
+      - "Korea"
+    greenhouse_dev_only: true
+
+  # Kurly (컬리) — GreetingHR. occupation "개발"/"보안"/"인프라"/"데이터"
+  # are the technical ones; there's no single URL filter covering all of
+  # them, hence the whole listing + greetinghr_dev_only.
+  kurly:
+    greetinghr_subdomain: "kurly"
+    greetinghr_list_path: "/ko/home"
+    greetinghr_company: "컬리"
+    greetinghr_dev_only: true
+
+  # Musinsa (무신사) — GreetingHR on its own domain. It leaves occupation
+  # blank and uses job names instead ("Backend Engineering", "DevOps",
+  # "ML Engineer", "DBA", ...), which greetinghr_dev_only also checks.
+  musinsa:
+    greetinghr_subdomain: "musinsa"
+    greetinghr_base_url: "https://www.musinsacareers.com"
+    greetinghr_list_path: "/ko/home"
+    greetinghr_company: "무신사"
+    greetinghr_dev_only: true
+
+  # 놀유니버스 (NOL Universe) — Yanolja's platform business (야놀자 앱,
+  # 인터파크, 트리플) split out into its own company; hires separately from
+  # yanolja below. GreetingHR on its own domain. Its board currently mixes
+  # 사업/운영 roles in with any tech ones, hence greetinghr_dev_only.
+  noluniverse:
+    greetinghr_subdomain: "noluniverse"
+    greetinghr_base_url: "https://careers.nol-universe.com"
+    greetinghr_list_path: "/ko/jobs"
+    greetinghr_company: "놀유니버스"
+    greetinghr_dev_only: true
+
+  # Hyperconnect (하이퍼커넥트, Azar / Match Group AI / Tinder Seoul) —
+  # listed under Match Group's Lever board. Its Seoul ML roles sit under
+  # team "Core", not "Engineering", so filter by title/team via
+  # lever_dev_only instead of a team allow-list.
+  hyperconnect:
+    lever_company_slug: "matchgroup"
+    lever_company: "하이퍼커넥트"
+    lever_countries:
+      - "KR"
+    lever_dev_only: true
+
+  # Netmarble group (넷마블/넷마블네오/...) — job group "기술/AI" plus
+  # dev-looking titles elsewhere. See internal/site/netmarble.
+  netmarble:
+    netmarble_dev_only: true
+
+  # NCSOFT — job types Game Programming / AI R&D / System Administration
+  # plus dev-looking titles. See internal/site/ncsoft.
+  ncsoft:
+    ncsoft_dev_only: true
+
+  # 오늘의집 (Bucketplace) — team Engineering/정보보안 plus dev-looking
+  # titles. See internal/site/bucketplace.
+  bucketplace:
+    bucketplace_dev_only: true
+
+  # Yanolja — careers.yanolja.co links out to this Workday site for its
+  # actual listings (the GreetingHR-built homepage itself lists none).
+  # Nothing is open there right now; kept so new postings show up.
+  yanolja:
+    workday_host: "yanolja.wd102.myworkdayjobs.com"
+    workday_tenant: "yanolja"
+    workday_site: "External_Yanolja"
+    workday_company: "야놀자"
+    workday_dev_only: true
+
+  # Remote-friendly global companies. Their Greenhouse/Ashby location
+  # strings are free text ("Remote - APAC", "Seoul", "South Korea",
+  # "Anywhere"), so these are substring allow-lists. Several currently have
+  # nothing open for Korea (Vercel, 1Password) — kept so a Korea/APAC
+  # opening shows up the day it's posted.
+  vercel:
+    greenhouse_company_slug: "vercel"
+    greenhouse_company: "Vercel"
+    greenhouse_locations: &remote_korea_locations
+      - "Korea"
+      - "Seoul"
+      - "APAC"
+      - "APJ"
+      - "Asia"
+      - "Anywhere"
+      - "Worldwide"
+      - "Global"
+    greenhouse_dev_only: true
+
+  elastic:
+    greenhouse_company_slug: "elastic"
+    greenhouse_company: "Elastic"
+    greenhouse_locations: *remote_korea_locations
+    greenhouse_dev_only: true
+
+  mongodb:
+    greenhouse_company_slug: "mongodb"
+    greenhouse_company: "MongoDB"
+    greenhouse_locations: *remote_korea_locations
+    greenhouse_dev_only: true
+
+  # Shopify — remote-first, hires per region; see internal/site/shopify.
+  # Its own location names are regions/countries ("APAC", "Global",
+  # "Singapore", ...), no Korea-specific entry exists today.
+  shopify:
+    shopify_locations: *remote_korea_locations
+    shopify_dev_only: true
+
+  1password:
+    ashby_company_slug: "1password"
+    ashby_company: "1Password"
+    ashby_locations: *remote_korea_locations
+    ashby_dev_only: true
+
   sap:
     # Filtered search path+query from jobs.sap.com, copied verbatim.
     sap_list_path: "/go/Technology-Jobs-in-Seoul/918101/join?q=&sortColumn=sort_location&sortDirection=asc"
@@ -235,6 +400,11 @@ sites:
     # recall-biased department+title check. See internal/site/netflix's
     # devRelated doc comment for exactly what that means and why.
     netflix_dev_only: true
+
+  # Meta Careers renders its results in Chromium. It is run by the separate
+  # meta-crawl workflow only, not by the normal HTTP-only crawler.
+  meta:
+    meta_dev_only: true
 
   naver:
     # Category codes from recruit.navercorp.com. Tick the filters you
@@ -347,19 +517,29 @@ sites:
     kakao_employee_type: ""
 
   woowahan:
-    # Mirrors the supplied Baemin/우아한형제들 recruitment URL. These are
-    # the API's job-group and job-code values; either list may be empty to
-    # remove that filter.
+    # jobGroupCodes=BA005001 is the site's own "Tech" tab (confirmed live
+    # — clicking it on career.woowahan.com sends exactly this code) and
+    # on its own already returns a clean, fully dev-relevant set (정보보안,
+    # 데이터엔지니어링, QA, 로보틱스 S/W, 플랫폼엔지니어링). The job_codes
+    # sub-filter that used to sit alongside it (BA007007/009/005) had gone
+    # stale — none of today's postings carry those sub-codes anymore, so
+    # the AND of the two filters was silently zeroing out every result.
+    # Dropped rather than re-guessed at current sub-codes, since the
+    # top-level group alone is already precise enough.
     woowahan_job_group_codes:
       - "BA005001"
-    woowahan_job_codes:
-      - "BA007007"
-      - "BA007009"
-      - "BA007005"
+    woowahan_job_codes: []
 
   coupang:
-    # Matches the supplied search URL: selected departments in Seoul.
-    # Empty lists remove that dimension's filter.
+    # coupang_departments is now just a legacy allow-list, not the real
+    # filter: Coupang has since split into ~60 differently-branded
+    # business units (Coupang Pay Tech, Eats Tech, CPLB, Supernova, ...),
+    # and 2 of these 5 names don't even exist anymore. Left as-is because
+    # it's harmless, but internal/site/coupang's Fetch() now also passes
+    # a posting whose department name contains "tech" or whose title
+    # reads like an engineering role — confirmed live this recovers ~100
+    # Seoul dev postings that the stale list alone was dropping down to
+    # single digits.
     coupang_locations:
       - "Seoul, South Korea"
     coupang_departments:

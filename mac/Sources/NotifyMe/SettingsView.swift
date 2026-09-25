@@ -7,7 +7,9 @@ struct SettingsView: View {
 
     @State private var backend: StoreBackend = .notion
     @State private var notionToken: String = ""
-    @State private var notionDatabaseID: String = ""
+    @State private var notionJobsDatabaseID: String = ""
+    @State private var notionFreelanceDatabaseID: String = ""
+    @State private var notionOpportunitiesDatabaseID: String = ""
     @State private var sheetsServiceAccountJSON: String = ""
     @State private var sheetsSpreadsheetID: String = ""
     @State private var sheetsSheetName: String = ""
@@ -38,7 +40,9 @@ struct SettingsView: View {
                 Button("Save") {
                     credentials.backend = backend
                     credentials.notionToken = notionToken
-                    credentials.notionDatabaseID = notionDatabaseID
+                    credentials.notionJobsDatabaseID = notionJobsDatabaseID
+                    credentials.notionFreelanceDatabaseID = notionFreelanceDatabaseID
+                    credentials.notionOpportunitiesDatabaseID = notionOpportunitiesDatabaseID
                     credentials.sheetsServiceAccountJSON = sheetsServiceAccountJSON
                     credentials.sheetsSpreadsheetID = sheetsSpreadsheetID
                     credentials.sheetsSheetName = sheetsSheetName
@@ -53,7 +57,9 @@ struct SettingsView: View {
         .onAppear {
             backend = credentials.backend
             notionToken = credentials.notionToken
-            notionDatabaseID = credentials.notionDatabaseID
+            notionJobsDatabaseID = credentials.notionJobsDatabaseID
+            notionFreelanceDatabaseID = credentials.notionFreelanceDatabaseID
+            notionOpportunitiesDatabaseID = credentials.notionOpportunitiesDatabaseID
             sheetsServiceAccountJSON = credentials.sheetsServiceAccountJSON
             sheetsSpreadsheetID = credentials.sheetsSpreadsheetID
             sheetsSheetName = credentials.sheetsSheetName
@@ -68,10 +74,22 @@ struct SettingsView: View {
             SecureField("secret_...", text: $notionToken)
                 .textFieldStyle(.roundedBorder)
 
-            Text("Database ID")
+            Text("Jobs database ID")
                 .font(.caption)
                 .foregroundStyle(.secondary)
-            TextField("32-character ID from the database URL", text: $notionDatabaseID)
+            TextField("32-character ID from the Jobs database URL", text: $notionJobsDatabaseID)
+                .textFieldStyle(.roundedBorder)
+
+            Text("Freelance database ID")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            TextField("32-character ID (optional for now)", text: $notionFreelanceDatabaseID)
+                .textFieldStyle(.roundedBorder)
+
+            Text("Competition / opportunity database ID")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            TextField("32-character ID (optional for now)", text: $notionOpportunitiesDatabaseID)
                 .textFieldStyle(.roundedBorder)
         }
     }

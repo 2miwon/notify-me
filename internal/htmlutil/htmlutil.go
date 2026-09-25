@@ -23,6 +23,9 @@ func StripToText(htmlFragment string) string {
 	if err != nil {
 		return ""
 	}
+	// Some sites (Netmarble) return a whole standalone HTML document,
+	// whose <style>/<title> text would otherwise leak into the result.
+	doc.Find("style, script, title").Remove()
 	doc.Find("br").ReplaceWithHtml("\n")
 
 	var lines []string

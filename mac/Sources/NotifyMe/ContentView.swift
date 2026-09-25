@@ -1,6 +1,28 @@
 import SwiftUI
 import AppKit
 
+private enum Workspace: String, CaseIterable, Identifiable {
+    case jobs, freelance, opportunities
+
+    var id: Self { self }
+    var label: String {
+        switch self {
+        case .jobs: return "Jobs"
+        case .freelance: return "Freelance"
+        case .opportunities: return "공모전·대회"
+        }
+    }
+}
+
+private enum JobsPresentation: String, CaseIterable, Identifiable {
+    case board
+    case list
+
+    var id: Self { self }
+    var label: String { self == .board ? "회사별" : "전체" }
+    var icon: String { self == .board ? "rectangle.split.3x1" : "list.bullet" }
+}
+
 struct ContentView: View {
     @StateObject private var credentials = CredentialsStore()
     @State private var postings: [JobPosting] = []
@@ -8,6 +30,7 @@ struct ContentView: View {
     @State private var isLoading = false
     @State private var showSettings = false
     @State private var showBookmarkedOnly = false
+    @State private var appliedFilter: AppliedFilter = .all
     @State private var searchText = ""
     @State private var employmentTypeFilter: Set<String> = []
     @State private var careerLevelFilter: Set<String> = []
@@ -16,6 +39,8 @@ struct ContentView: View {
     @State private var detailPostingID: String?
     @State private var descriptionCache: [String: String] = [:]
     @State private var loadingDescriptionIDs: Set<String> = []
+    @State private var workspace: Workspace = .jobs
+    @State private var jobsPresentation: JobsPresentation = .board
 
     private let refreshInterval: TimeInterval = 60
 
@@ -55,7 +80,16 @@ struct ContentView: View {
     /// so it applies uniformly within each site's column.
     private var filteredPostings: [JobPosting] {
         postings
-            .filter { !$0.hidden }
+            // The applied collection is a record of what was sent out, so
+            // it keeps postings that were later hidden from the feed.
+            .filter { appliedFilter == .appliedOnly || !$0.hidden }
+            .filter {
+                switch appliedFilter {
+                case .all: return true
+                case .notApplied: return !$0.applied
+                case .appliedOnly: return $0.applied
+                }
+            }
             .filter { !showBookmarkedOnly || $0.bookmarked }
             .filter { employmentTypeFilter.isEmpty || employmentTypeFilter.contains($0.employmentType) }
             .filter { careerLevelFilter.isEmpty || careerLevelFilter.contains($0.careerLevel) }
@@ -72,6 +106,16 @@ struct ContentView: View {
         filteredPostings.filter { $0.site == site }
     }
 
+    /// The all-company list honours the same filters and sorting as the
+    /// board. Site muting is retained except in the applied-history view,
+    /// where hidden site columns have never suppressed the user's records.
+    private var mixedPostings: [JobPosting] {
+        if appliedFilter == .appliedOnly {
+            return filteredPostings
+        }
+        return filteredPostings.filter { !credentials.mutedSites.contains($0.site) }
+    }
+
     /// Looked up live from `postings` (rather than storing a snapshot)
     /// so an in-sheet action like toggling Bookmark shows up immediately.
     private var detailPosting: JobPosting? {
@@ -82,23 +126,39 @@ struct ContentView: View {
     // MARK: - Body
 
     var body: some View {
-        ZStack {
+        ZStack(alignment: .topLeading) {
             VisualEffectView().ignoresSafeArea()
 
             VStack(spacing: 0) {
                 header
-                filterBar
-
-                if !credentials.isConfigured {
-                    settingsPrompt
-                } else if let errorMessage {
-                    errorView(errorMessage)
+                if workspace == .jobs {
+                    filterBar
+                    if !credentials.isConfigured {
+                        settingsPrompt
+                    } else if let errorMessage {
+                        errorView(errorMessage)
+                    } else {
+                        if jobsPresentation == .board {
+                            board
+                        } else {
+                            mixedList
+                        }
+                    }
                 } else {
-                    board
+                    workspaceEmptyState
                 }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
-        .frame(minWidth: 720, idealWidth: 960, minHeight: 480, idealHeight: 640)
+        .frame(
+            minWidth: 720,
+            idealWidth: 960,
+            maxWidth: .infinity,
+            minHeight: 480,
+            idealHeight: 640,
+            maxHeight: .infinity,
+            alignment: .topLeading
+        )
         .background(WindowConfigurator())
         .task { await refreshLoop() }
         .onReceive(NotificationCenter.default.publisher(for: .refreshPostings)) { _ in
@@ -120,6 +180,7 @@ struct ContentView: View {
                     isLoadingDescription: loadingDescriptionIDs.contains(posting.id),
                     onOpen: { openPosting(posting) },
                     onToggleBookmark: { toggle(posting, .bookmarked) },
+                    onToggleApplied: { toggle(posting, .applied) },
                     onToggleHidden: {
                         toggle(posting, .hidden)
                         detailPostingID = nil // it just vanished from the board
@@ -138,8 +199,13 @@ struct ContentView: View {
 
     private var header: some View {
         HStack {
-            Text("Events")
-                .font(.headline)
+            Picker("Workspace", selection: $workspace) {
+                ForEach(Workspace.allCases) { item in
+                    Text(item.label).tag(item)
+                }
+            }
+            .pickerStyle(.segmented)
+            .frame(width: 360)
             Spacer()
             if isLoading {
                 ProgressView().controlSize(.small)
@@ -152,6 +218,20 @@ struct ContentView: View {
             .buttonStyle(.plain)
         }
         .padding(EdgeInsets(top: 14, leading: 16, bottom: 6, trailing: 16))
+    }
+
+    private var workspaceEmptyState: some View {
+        VStack(spacing: 10) {
+            Image(systemName: workspace == .freelance ? "briefcase" : "trophy")
+                .font(.system(size: 28))
+                .foregroundStyle(.secondary)
+            Text("\(workspace.label) workspace")
+                .font(.headline)
+            Text("별도 Notion 데이터베이스를 연결하면 이 탭에서 관리할 수 있어요.")
+                .foregroundStyle(.secondary)
+            Button("데이터 소스 설정") { showSettings = true }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private var filterBar: some View {
@@ -198,6 +278,29 @@ struct ContentView: View {
             .fixedSize()
             .help("Sort")
 
+            Menu {
+                ForEach(AppliedFilter.allCases) { filter in
+                    Button {
+                        appliedFilter = filter
+                    } label: {
+                        HStack {
+                            Text(filter.label)
+                            if appliedFilter == filter {
+                                Spacer()
+                                Image(systemName: "checkmark")
+                            }
+                        }
+                    }
+                }
+            } label: {
+                Label(appliedFilter.label, systemImage: appliedFilter.systemImage)
+                    .font(.caption)
+                    .foregroundStyle(appliedFilter == .all ? Color.primary : appliedGreen)
+            }
+            .menuStyle(.borderlessButton)
+            .fixedSize()
+            .help("지원한 공고 포함 여부")
+
             Button {
                 showBookmarkedOnly.toggle()
             } label: {
@@ -205,6 +308,18 @@ struct ContentView: View {
             }
             .buttonStyle(.plain)
             .help("Show bookmarked only")
+
+            Picker("공고 보기", selection: $jobsPresentation) {
+                ForEach(JobsPresentation.allCases) { presentation in
+                    Image(systemName: presentation.icon)
+                        .accessibilityLabel(presentation.label)
+                        .tag(presentation)
+                }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .frame(width: 64)
+            .help(jobsPresentation == .board ? "전체 목록으로 보기" : "회사별 보드로 보기")
 
             if !credentials.mutedSites.isEmpty {
                 Menu {
@@ -270,7 +385,9 @@ struct ContentView: View {
     private var board: some View {
         ScrollView(.horizontal) {
             HStack(alignment: .top, spacing: 12) {
-                if visibleSites.isEmpty {
+                if appliedFilter == .appliedOnly {
+                    appliedCollection
+                } else if visibleSites.isEmpty {
                     emptyBoardMessage
                 } else {
                     ForEach(visibleSites, id: \.self) { site in
@@ -280,12 +397,70 @@ struct ContentView: View {
                             onHideSite: { credentials.toggleMuted(site: site) },
                             onSelect: { detailPostingID = $0.id },
                             onToggleBookmark: { toggle($0, .bookmarked) },
+                            onToggleApplied: { toggle($0, .applied) },
                             onToggleHidden: { toggle($0, .hidden) }
                         )
                     }
                 }
             }
             .padding(16)
+        }
+    }
+
+    /// A single vertical feed across every company, rather than one column
+    /// per source. It intentionally reuses JobCardView so opening, saved,
+    /// applied, hidden, read and deadline states behave exactly as in Board.
+    private var mixedList: some View {
+        ScrollView {
+            LazyVStack(spacing: 8) {
+                if mixedPostings.isEmpty {
+                    Text(emptyStateMessage)
+                        .multilineTextAlignment(.center)
+                        .foregroundStyle(.secondary)
+                        .padding(.top, 40)
+                } else {
+                    ForEach(mixedPostings) { posting in
+                        JobCardView(
+                            posting: posting,
+                            showsSite: true,
+                            onSelect: { detailPostingID = posting.id },
+                            onToggleBookmark: { toggle(posting, .bookmarked) },
+                            onToggleApplied: { toggle(posting, .applied) },
+                            onToggleHidden: { toggle(posting, .hidden) }
+                        )
+                    }
+                }
+            }
+            .frame(maxWidth: 920, alignment: .leading)
+            .padding(16)
+            .frame(maxWidth: .infinity, alignment: .center)
+        }
+    }
+
+    /// Every applied-to posting in one place, across sites and regardless
+    /// of per-site mutes — this view is about tracking applications, not
+    /// browsing a company's openings.
+    @ViewBuilder
+    private var appliedCollection: some View {
+        let applied = filteredPostings
+        if applied.isEmpty {
+            Text("아직 지원한 공고가 없어요 — 카드의 ✓ 버튼으로 지원 표시를 할 수 있어요")
+                .multilineTextAlignment(.center)
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 24)
+                .padding(.top, 40)
+                .frame(maxWidth: .infinity)
+        } else {
+            SiteColumn(
+                site: "지원한 공고",
+                postings: applied,
+                showsSite: true,
+                onHideSite: nil,
+                onSelect: { detailPostingID = $0.id },
+                onToggleBookmark: { toggle($0, .bookmarked) },
+                onToggleApplied: { toggle($0, .applied) },
+                onToggleHidden: { toggle($0, .hidden) }
+            )
         }
     }
 
@@ -414,6 +589,7 @@ struct ContentView: View {
         case .bookmarked: newValue = !posting.bookmarked
         case .hidden: newValue = !posting.hidden
         case .seen: newValue = !posting.seen
+        case .applied: newValue = !posting.applied
         }
         setChecked(posting, property, newValue)
     }
@@ -446,6 +622,7 @@ struct ContentView: View {
         case .seen: posting.seen = value
         case .bookmarked: posting.bookmarked = value
         case .hidden: posting.hidden = value
+        case .applied: posting.applied = value
         }
     }
 }
@@ -455,9 +632,14 @@ struct ContentView: View {
 private struct SiteColumn: View {
     let site: String
     let postings: [JobPosting]
-    let onHideSite: () -> Void
+    /// Shows each card's source site — only useful in a column that mixes
+    /// sites, i.e. the applied collection.
+    var showsSite = false
+    /// nil for a column that can't be muted (the applied collection).
+    let onHideSite: (() -> Void)?
     let onSelect: (JobPosting) -> Void
     let onToggleBookmark: (JobPosting) -> Void
+    let onToggleApplied: (JobPosting) -> Void
     let onToggleHidden: (JobPosting) -> Void
 
     var body: some View {
@@ -469,11 +651,13 @@ private struct SiteColumn: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Spacer()
-                Button(action: onHideSite) {
-                    Image(systemName: "eye.slash")
+                if let onHideSite {
+                    Button(action: onHideSite) {
+                        Image(systemName: "eye.slash")
+                    }
+                    .buttonStyle(.plain)
+                    .help("Hide \(site) column")
                 }
-                .buttonStyle(.plain)
-                .help("Hide \(site) column")
             }
             .padding(.horizontal, 4)
 
@@ -488,8 +672,10 @@ private struct SiteColumn: View {
                     ForEach(postings) { posting in
                         JobCardView(
                             posting: posting,
+                            showsSite: showsSite,
                             onSelect: { onSelect(posting) },
                             onToggleBookmark: { onToggleBookmark(posting) },
+                            onToggleApplied: { onToggleApplied(posting) },
                             onToggleHidden: { onToggleHidden(posting) }
                         )
                     }
@@ -497,32 +683,51 @@ private struct SiteColumn: View {
                 .padding(.bottom, 8)
             }
         }
-        .frame(width: 300)
+        .frame(width: showsSite ? 420 : 300)
     }
 }
+
+/// The one accent used for everything "applied" — the card's border and
+/// badge, the filter control, and the detail view's button — so it reads
+/// as a single consistent state at a glance.
+private let appliedGreen = Color(red: 0.18, green: 0.72, blue: 0.42)
 
 // MARK: - Card
 
 struct JobCardView: View {
     let posting: JobPosting
+    var showsSite = false
     let onSelect: () -> Void
     let onToggleBookmark: () -> Void
+    let onToggleApplied: () -> Void
     let onToggleHidden: () -> Void
+
+    /// Seen-but-not-applied cards fade back; applied ones don't, since
+    /// they're the ones worth tracking rather than ones already dismissed.
+    private var isMuted: Bool { posting.seen && !posting.applied }
 
     var body: some View {
         Button(action: onSelect) {
             VStack(alignment: .leading, spacing: 6) {
+                if posting.applied {
+                    Label("지원 완료", systemImage: "checkmark.seal.fill")
+                        .font(.caption2.weight(.bold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 2)
+                        .background(appliedGreen, in: Capsule())
+                }
                 HStack(alignment: .top) {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(posting.title)
                             // A viewed posting should stay readable, but no
                             // longer compete visually with new opportunities.
-                            .font(.subheadline.weight(posting.seen ? .regular : .semibold))
+                            .font(.subheadline.weight(isMuted ? .regular : .semibold))
                             .lineLimit(2)
-                            .foregroundStyle(posting.seen ? Color.gray.opacity(0.65) : Color.primary)
-                        Text(posting.company)
+                            .foregroundStyle(isMuted ? Color.gray.opacity(0.65) : Color.primary)
+                        Text(showsSite ? "\(posting.company) · \(posting.site)" : posting.company)
                             .font(.caption)
-                            .foregroundStyle(posting.seen ? Color.gray.opacity(0.55) : Color.secondary)
+                            .foregroundStyle(isMuted ? Color.gray.opacity(0.55) : Color.secondary)
                     }
                     Spacer()
                     VStack(spacing: 6) {
@@ -531,6 +736,12 @@ struct JobCardView: View {
                                 .foregroundStyle(posting.bookmarked ? Color.yellow : Color.secondary)
                         }
                         .buttonStyle(.plain)
+                        Button(action: onToggleApplied) {
+                            Image(systemName: posting.applied ? "checkmark.circle.fill" : "checkmark.circle")
+                                .foregroundStyle(posting.applied ? appliedGreen : Color.secondary)
+                        }
+                        .buttonStyle(.plain)
+                        .help(posting.applied ? "지원 취소" : "지원함으로 표시")
                         Button(action: onToggleHidden) {
                             Image(systemName: "xmark.circle")
                                 .foregroundStyle(.secondary)
@@ -575,6 +786,14 @@ struct JobCardView: View {
             .padding(10)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 10))
+            .background(
+                posting.applied ? appliedGreen.opacity(0.12) : Color.clear,
+                in: RoundedRectangle(cornerRadius: 10)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 10)
+                    .strokeBorder(posting.applied ? appliedGreen : Color.clear, lineWidth: 1.5)
+            )
             .opacity(posting.expired ? 0.6 : 1)
         }
         .buttonStyle(.plain)
@@ -627,6 +846,7 @@ private struct DetailView: View {
     let isLoadingDescription: Bool
     let onOpen: () -> Void
     let onToggleBookmark: () -> Void
+    let onToggleApplied: () -> Void
     let onToggleHidden: () -> Void
     let onClose: () -> Void
 
@@ -701,6 +921,11 @@ private struct DetailView: View {
                 Button(action: onToggleBookmark) {
                     Label(posting.bookmarked ? "Bookmarked" : "Bookmark",
                           systemImage: posting.bookmarked ? "star.fill" : "star")
+                }
+                Button(action: onToggleApplied) {
+                    Label(posting.applied ? "지원 완료" : "지원함으로 표시",
+                          systemImage: posting.applied ? "checkmark.seal.fill" : "checkmark.seal")
+                        .foregroundStyle(posting.applied ? appliedGreen : Color.primary)
                 }
                 Button(action: onToggleHidden) {
                     Label("Hide", systemImage: "eye.slash")

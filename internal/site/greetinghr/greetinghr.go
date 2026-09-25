@@ -57,16 +57,23 @@ type Adapter struct {
 	ListPath string
 	// Company is the display name stored on each posting.
 	Company string
+	// DevOnly keeps only postings whose occupation/job category or title
+	// looks technical — for companies whose ListPath can't pre-filter to
+	// dev roles (each company names its GreetingHR categories differently:
+	// Kurly's occupation is "개발", Musinsa leaves occupation blank and
+	// uses job names like "Backend Engineering").
+	DevOnly bool
 
 	client *http.Client
 }
 
-func New(subdomain, baseURL, listPath, company string) *Adapter {
+func New(subdomain, baseURL, listPath, company string, devOnly bool) *Adapter {
 	return &Adapter{
 		Subdomain: subdomain,
 		BaseURL:   baseURL,
 		ListPath:  listPath,
 		Company:   company,
+		DevOnly:   devOnly,
 		client:    &http.Client{Timeout: 20 * time.Second},
 	}
 }
@@ -96,8 +103,27 @@ type openingSummary struct {
 			JobPositionEmployment struct {
 				EmploymentType string `json:"employmentType"`
 			} `json:"jobPositionEmployment"`
+			WorkspaceOccupation *struct {
+				Occupation string `json:"occupation"`
+			} `json:"workspaceOccupation"`
+			WorkspaceJob *struct {
+				Job string `json:"job"`
+			} `json:"workspaceJob"`
 		} `json:"openingJobPositions"`
 	} `json:"openingJobPosition"`
+}
+
+func (o openingSummary) looksLikeDev() bool {
+	var categories []string
+	for _, pos := range o.OpeningJobPosition.OpeningJobPositions {
+		if pos.WorkspaceOccupation != nil {
+			categories = append(categories, pos.WorkspaceOccupation.Occupation)
+		}
+		if pos.WorkspaceJob != nil {
+			categories = append(categories, pos.WorkspaceJob.Job)
+		}
+	}
+	return job.LooksDev(o.Title, categories...)
 }
 
 type openingDetail struct {
@@ -123,6 +149,9 @@ func (a *Adapter) Fetch() ([]job.Posting, error) {
 
 	var postings []job.Posting
 	for _, o := range openings {
+		if a.DevOnly && !o.looksLikeDev() {
+			continue
+		}
 		p := job.Posting{
 			Site:       a.Name(),
 			ExternalID: fmt.Sprintf("%d", o.OpeningID),
@@ -160,7 +189,7 @@ func (a *Adapter) Fetch() ([]job.Posting, error) {
 }
 
 func (a *Adapter) fetchOpenings() ([]openingSummary, error) {
-	html, err := a.getHTML(a.baseURL() + a.ListPath)
+	html, err := getHTML(a.client, a.baseURL()+a.ListPath)
 	if err != nil {
 		return nil, err
 	}
@@ -177,7 +206,14 @@ func (a *Adapter) fetchOpenings() ([]openingSummary, error) {
 }
 
 func (a *Adapter) fetchDescription(openingID int64) (string, error) {
-	html, err := a.getHTML(fmt.Sprintf("%s/ko/o/%d", a.baseURL(), openingID))
+	return FetchDescription(a.client, fmt.Sprintf("%s/ko/o/%d", a.baseURL(), openingID))
+}
+
+// FetchDescription returns the plain-text body of one GreetingHR opening
+// page (".../ko/o/<openingId>"). Exported for sites that list their
+// openings somewhere else but link each one to GreetingHR (bucketplace).
+func FetchDescription(client *http.Client, openingURL string) (string, error) {
+	html, err := getHTML(client, openingURL)
 	if err != nil {
 		return "", err
 	}
@@ -193,14 +229,14 @@ func (a *Adapter) fetchDescription(openingID int64) (string, error) {
 	return htmlutil.StripToText(detail.Data.OpeningsInfo.Detail), nil
 }
 
-func (a *Adapter) getHTML(url string) (string, error) {
+func getHTML(client *http.Client, url string) (string, error) {
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
 		return "", err
 	}
 	req.Header.Set("User-Agent", userAgent)
 
-	resp, err := a.client.Do(req)
+	resp, err := client.Do(req)
 	if err != nil {
 		return "", err
 	}

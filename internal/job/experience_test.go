@@ -18,6 +18,22 @@ func TestExtractMinYearsExperienceFallsBackToGenericRequirement(t *testing.T) {
 	}
 }
 
+func TestExtractMinYearsExperienceHandlesStructuredKoreanRange(t *testing.T) {
+	tests := []struct {
+		text string
+		want int
+	}{
+		{"경력 : 2년 ~ 10년", 2},
+		{"관련 경력：5년 이상", 5},
+	}
+	for _, test := range tests {
+		got := ExtractMinYearsExperience(test.text)
+		if got == nil || *got != test.want {
+			t.Errorf("ExtractMinYearsExperience(%q) = %v, want %d", test.text, got, test.want)
+		}
+	}
+}
+
 func TestExtractMinYearsExperienceEnglishVariants(t *testing.T) {
 	tests := []struct {
 		text string

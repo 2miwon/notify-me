@@ -10,12 +10,14 @@ struct GoogleSheetsStore: JobStore {
     private let sheetName: String
 
     private static let scope = "https://www.googleapis.com/auth/spreadsheets"
-    private static let columnLetters = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q"]
+    private static let columnLetters = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R"]
 
+    // Applied is last (column R), matching internal/sheets on the Go side,
+    // which appended it rather than shifting existing columns.
     private enum Col: Int {
         case title, company, url, site, location, firstSeen, seen, bookmarked, hidden, expired,
              employmentType, careerLevel, applicationStart, applicationDeadline, description,
-             minYearsExperience, minimumDegree
+             minYearsExperience, minimumDegree, applied
     }
 
     /// `serviceAccountJSON` is the whole contents of a downloaded Google
@@ -52,6 +54,7 @@ struct GoogleSheetsStore: JobStore {
                 seen: cellBool(row, .seen),
                 bookmarked: cellBool(row, .bookmarked),
                 hidden: cellBool(row, .hidden),
+                applied: cellBool(row, .applied),
                 expired: cellBool(row, .expired),
                 employmentType: cell(row, .employmentType) ?? "",
                 careerLevel: cell(row, .careerLevel) ?? "",
@@ -88,6 +91,7 @@ struct GoogleSheetsStore: JobStore {
         case .seen: col = .seen
         case .bookmarked: col = .bookmarked
         case .hidden: col = .hidden
+        case .applied: col = .applied
         }
 
         let url = valuesURL(range: "\(sheetName)!\(Self.columnLetters[col.rawValue])\(id)",

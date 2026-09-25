@@ -41,6 +41,9 @@ const (
 	colDescription
 	colMinYearsExperience
 	colMinimumDegree
+	// Applied is app-owned like Seen/Bookmarked/Hidden, but appended last
+	// rather than grouped with them so existing sheets keep their layout.
+	colApplied
 )
 
 const defaultSheetName = "Postings"
@@ -50,12 +53,12 @@ var header = []interface{}{
 	"Seen", "Bookmarked", "Hidden", "Expired",
 	"Employment Type", "Career Level", "Application Start", "Application Deadline",
 	"Description", "Min Years Experience",
-	"Minimum Degree",
+	"Minimum Degree", "Applied",
 }
 
 // lastColumn is the header's last column letter, used to build A1:<lastColumn>
 // range references without hardcoding it in three places.
-const lastColumn = "Q"
+const lastColumn = "R"
 
 type Client struct {
 	svc           *sheets.Service
@@ -93,17 +96,21 @@ func (c *Client) ensureHeader(ctx context.Context) error {
 		return fmt.Errorf("read header: %w", err)
 	}
 	if len(resp.Values) > 0 {
-		// Older sheets already have a header row but not the newly added
-		// degree column. Add just that cell so existing user columns and
-		// formatting stay untouched.
-		if cellString(resp.Values[0], colMinimumDegree) != "" {
-			return nil
-		}
-		_, err := c.svc.Spreadsheets.Values.Update(c.spreadsheetID, c.rangeRef("Q1"), &sheets.ValueRange{
-			Values: [][]interface{}{{"Minimum Degree"}},
-		}).ValueInputOption("RAW").Context(ctx).Do()
-		if err != nil {
-			return fmt.Errorf("write degree header: %w", err)
+		// Older sheets already have a header row but not the columns
+		// appended since (Minimum Degree, Applied). Fill in just the
+		// missing trailing cells so existing user columns and formatting
+		// stay untouched.
+		for col := colMinimumDegree; col < len(header); col++ {
+			if cellString(resp.Values[0], col) != "" {
+				continue
+			}
+			cell := fmt.Sprintf("%c1", 'A'+col)
+			_, err := c.svc.Spreadsheets.Values.Update(c.spreadsheetID, c.rangeRef(cell), &sheets.ValueRange{
+				Values: [][]interface{}{{header[col]}},
+			}).ValueInputOption("RAW").Context(ctx).Do()
+			if err != nil {
+				return fmt.Errorf("write %v header: %w", header[col], err)
+			}
 		}
 		return nil
 	}
@@ -139,12 +146,38 @@ func (c *Client) ExistingPostings(ctx context.Context) (map[string]store.Existin
 			ID:                 url,
 			Site:               cellString(row, colSite),
 			Expired:            cellBool(row, colExpired),
+			Applied:            cellBool(row, colApplied),
 			MinimumDegree:      cellString(row, colMinimumDegree),
+			EmploymentType:     cellString(row, colEmploymentType),
 			CareerLevel:        cellString(row, colCareerLevel),
 			MinYearsExperience: cellInt(row, colMinYearsExperience),
 		}
 	}
 	return result, nil
+}
+
+func (c *Client) EnsureDescription(ctx context.Context, url, description string) error {
+	if strings.TrimSpace(description) == "" {
+		return nil
+	}
+	resp, err := c.svc.Spreadsheets.Values.Get(c.spreadsheetID, c.rangeRef("A2:"+lastColumn)).
+		ValueRenderOption("UNFORMATTED_VALUE").Context(ctx).Do()
+	if err != nil {
+		return fmt.Errorf("find row for description update: %w", err)
+	}
+	for i, row := range resp.Values {
+		if cellString(row, colURL) != url || strings.TrimSpace(cellString(row, colDescription)) != "" {
+			continue
+		}
+		_, err := c.svc.Spreadsheets.Values.Update(c.spreadsheetID, c.rangeRef(fmt.Sprintf("O%d", i+2)), &sheets.ValueRange{
+			Values: [][]interface{}{{description}},
+		}).ValueInputOption("RAW").Context(ctx).Do()
+		if err != nil {
+			return fmt.Errorf("update description for %s: %w", url, err)
+		}
+		return nil
+	}
+	return nil
 }
 
 func (c *Client) UpdateMinimumDegree(ctx context.Context, url, degree string) error {
@@ -155,8 +188,16 @@ func (c *Client) UpdateCareerLevel(ctx context.Context, url, level string) error
 	return c.updateCellByURL(ctx, url, "L", level, "career level")
 }
 
+func (c *Client) UpdateEmploymentType(ctx context.Context, url, employmentType string) error {
+	return c.updateCellByURL(ctx, url, "K", employmentType, "employment type")
+}
+
 func (c *Client) UpdateMinYearsExperience(ctx context.Context, url string, years int) error {
 	return c.updateCellByURL(ctx, url, "P", years, "minimum experience")
+}
+
+func (c *Client) MarkExpired(ctx context.Context, url string) error {
+	return c.updateCellByURL(ctx, url, "J", true, "expired")
 }
 
 func (c *Client) updateCellByURL(ctx context.Context, url, column string, value interface{}, field string) error {
@@ -191,6 +232,7 @@ func (c *Client) CreatePosting(ctx context.Context, p job.Posting) error {
 	row[colSeen] = false
 	row[colBookmarked] = false
 	row[colHidden] = false
+	row[colApplied] = false
 	row[colExpired] = false
 	row[colEmploymentType] = p.EmploymentType
 	row[colCareerLevel] = p.CareerLevel

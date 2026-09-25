@@ -11,6 +11,10 @@ import (
 // for one year, and the latter must not lower the displayed requirement.
 var careerYearsPatterns = []*regexp.Regexp{
 	regexp.MustCompile(`(?:총\s*)?경력(?:이|은)?\s*(\d{1,2})\s*년`),
+	// NCSoft (and several Korean ATS templates) render a structured range
+	// as "경력 : 2년 ~ 10년" rather than prose such as "경력 2년 이상".
+	// The first number is the minimum requirement.
+	regexp.MustCompile(`(?:관련\s*)?경력\s*[:：]\s*(\d{1,2})\s*년`),
 	regexp.MustCompile(`(\d{1,2})\s*년\s*(?:이상\s*)?(?:의\s*)?(?:관련\s*)?(?:실무\s*)?경력`),
 	regexp.MustCompile(`(?i)(\d{1,2})\s*(?:-|–|—|to)\s*\d{1,2}\s*years?(?:['’]s?)?\s*(?:of\s*)?experience`),
 	regexp.MustCompile(`(?i)(?:at\s+least|minimum(?:\s+of)?|more\s+than|over)\s*(\d{1,2})\s*years?(?:['’]s?)?\s+(?:of\s+)?(?:(?:relevant|related|industry|professional|work)\s+)?experience`),

@@ -43,6 +43,11 @@ func (a *Adapter) Fetch() ([]job.Posting, error) {
 			u, _ = url.Parse("https://www.google.com/about/careers/applications/" + strings.TrimPrefix(href, "./"))
 		}
 		location := clean(card.Find(".r0wTof").First().Text())
+		// The list card's own .Xsxa1e only ever holds "Minimum
+		// qualifications" — "About the job", "Responsibilities" and
+		// "Preferred qualifications" only exist on the detail page, so
+		// using the card's snippet as the full description silently
+		// truncated every posting to just its minimum-quals bullets.
 		description := clean(card.Find(".Xsxa1e").Text())
 		externalID := card.AttrOr("ssk", "")
 		if _, id, ok := strings.Cut(externalID, ":"); ok {
@@ -50,6 +55,11 @@ func (a *Adapter) Fetch() ([]job.Posting, error) {
 		}
 
 		p := job.Posting{Site: a.Name(), ExternalID: externalID, Title: title, Company: "Google", URL: u.String(), Location: location, CareerLevel: "신입", PostedAt: time.Now().UTC(), Description: description}
+		// A failed detail fetch is a lesser failure than losing the
+		// posting entirely — keep it with just the list card's snippet.
+		if full, err := a.fetchDescription(u.String()); err == nil && full != "" {
+			p.Description = full
+		}
 		p.MinYearsExperience = job.ExtractMinYearsExperience(p.Title + "\n" + p.Description)
 		postings = append(postings, p)
 	})
@@ -60,6 +70,35 @@ func (a *Adapter) Fetch() ([]job.Posting, error) {
 		return nil, fmt.Errorf("google: fetched only %d of %d matched jobs; refusing an incomplete refresh", len(postings), total)
 	}
 	return postings, nil
+}
+
+// fetchDescription reads the full posting body off the detail page —
+// qualifications (both tiers), "About the job", and "Responsibilities" —
+// none of which the list page's own card exposes in full.
+func (a *Adapter) fetchDescription(detailURL string) (string, error) {
+	doc, err := a.get(detailURL)
+	if err != nil {
+		return "", err
+	}
+
+	var parts []string
+	doc.Find("h3:contains('qualifications')").Each(func(_ int, h3 *goquery.Selection) {
+		heading := clean(h3.Text())
+		list := clean(h3.NextFiltered("ul").Text())
+		if heading != "" || list != "" {
+			parts = append(parts, strings.TrimSpace(heading+"\n"+list))
+		}
+	})
+	appendSection := func(sel *goquery.Selection) {
+		heading := clean(sel.Find("h3").First().Text())
+		body := clean(sel.Clone().Find("h3").Remove().End().Text())
+		if heading != "" || body != "" {
+			parts = append(parts, strings.TrimSpace(heading+"\n"+body))
+		}
+	}
+	appendSection(doc.Find("div.aG5W3").First())
+	appendSection(doc.Find("div.BDNOWe").First())
+	return strings.Join(parts, "\n\n"), nil
 }
 
 func (a *Adapter) get(target string) (*goquery.Document, error) {

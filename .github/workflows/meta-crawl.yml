@@ -1,0 +1,45 @@
+name: Crawl Meta Careers
+
+on:
+  schedule:
+    # 09:00 and 21:00 Korea time (UTC cron).
+    - cron: "0 0,12 * * *"
+  workflow_dispatch: {}
+
+# Serialize writes with the regular crawler; both use the same Notion DB.
+concurrency:
+  group: crawl
+  cancel-in-progress: false
+
+jobs:
+  meta:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            config
+
+      - name: Confirm Chromium runtime
+        run: google-chrome --version
+
+      - name: Download crawler binary
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release download latest --repo "${{ github.repository }}" --pattern crawler --clobber
+          chmod +x crawler
+
+      - name: Crawl Meta Seoul engineering roles
+        env:
+          STORE_BACKEND: ${{ secrets.STORE_BACKEND }}
+          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+          NOTION_JOBS_DATABASE_ID: ${{ secrets.NOTION_JOBS_DATABASE_ID }}
+          NOTION_DATABASE_ID: ${{ secrets.NOTION_DATABASE_ID }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          GOOGLE_SHEETS_SPREADSHEET_ID: ${{ secrets.GOOGLE_SHEETS_SPREADSHEET_ID }}
+          GOOGLE_SHEETS_SHEET_NAME: ${{ secrets.GOOGLE_SHEETS_SHEET_NAME }}
+          META_HEADLESS_ENABLED: "true"
+          ONLY_SITE: meta
+        run: ./crawler

@@ -49,7 +49,33 @@ struct WindowConfigurator: NSViewRepresentable {
     func makeNSView(context: Context) -> NSView {
         let view = NSView()
         DispatchQueue.main.async {
-            guard let window = view.window else { return }
+            context.coordinator.configure(window: view.window)
+        }
+        return view
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {
+        context.coordinator.configure(window: nsView.window)
+    }
+
+    final class Coordinator: NSObject, NSWindowDelegate {
+        private weak var configuredWindow: NSWindow?
+        private var titlebarMonitor: Any?
+
+        deinit {
+            if let titlebarMonitor {
+                NSEvent.removeMonitor(titlebarMonitor)
+            }
+        }
+
+        func configure(window: NSWindow?) {
+            guard let window else { return }
+            guard configuredWindow !== window else { return }
+
+            if let titlebarMonitor {
+                NSEvent.removeMonitor(titlebarMonitor)
+            }
+            configuredWindow = window
             window.isOpaque = false
             window.backgroundColor = .clear
             window.hasShadow = true
@@ -57,14 +83,30 @@ struct WindowConfigurator: NSViewRepresentable {
             // stop around the ideal 960×640 layout. Use the screen's usable
             // area as the standard frame so a title-bar double-click behaves
             // like the expected near-maximize toggle.
-            window.delegate = context.coordinator
+            window.delegate = self
+
+            // macOS lets the user configure a title-bar double-click to
+            // minimize instead of zoom. The app uses a hidden title bar, so
+            // provide a predictable zoom toggle on the empty part of our top
+            // bar regardless of that global setting. Suppressing the second
+            // click keeps AppKit from also applying the system action.
+            titlebarMonitor = NSEvent.addLocalMonitorForEvents(matching: .leftMouseDown) { [weak window] event in
+                guard let window, event.window === window,
+                      event.clickCount == 2,
+                      let contentView = window.contentView else { return event }
+
+                let point = event.locationInWindow
+                let inTopBar = point.y >= contentView.bounds.height - 64
+                let inEmptyArea = point.x >= 390 && point.x <= contentView.bounds.width - 60
+                guard inTopBar && inEmptyArea else { return event }
+
+                DispatchQueue.main.async {
+                    window.zoom(nil)
+                }
+                return nil
+            }
         }
-        return view
-    }
 
-    func updateNSView(_ nsView: NSView, context: Context) {}
-
-    final class Coordinator: NSObject, NSWindowDelegate {
         func windowWillUseStandardFrame(_ window: NSWindow, defaultFrame: NSRect) -> NSRect {
             window.screen?.visibleFrame ?? defaultFrame
         }

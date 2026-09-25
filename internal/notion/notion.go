@@ -82,12 +82,18 @@ func (c *Client) ExistingPostings(ctx context.Context) (map[string]store.Existin
 			if expiredProp, ok := page.Properties[PropExpired].(*notionapi.CheckboxProperty); ok {
 				expired = expiredProp.Checkbox
 			}
+			applied := false
+			if appliedProp, ok := page.Properties[PropApplied].(*notionapi.CheckboxProperty); ok {
+				applied = appliedProp.Checkbox
+			}
 
 			result[urlProp.URL] = store.ExistingPosting{
 				ID:                 string(page.ID),
 				Site:               site,
 				Expired:            expired,
+				Applied:            applied,
 				MinimumDegree:      selectValue(page.Properties, PropMinimumDegree),
+				EmploymentType:     selectValue(page.Properties, PropEmploymentType),
 				CareerLevel:        selectValue(page.Properties, PropCareerLevel),
 				MinYearsExperience: numberValue(page.Properties, PropMinYearsExperience),
 			}
@@ -145,6 +151,7 @@ func (c *Client) CreatePosting(ctx context.Context, p job.Posting) error {
 		PropSeen:       notionapi.CheckboxProperty{Checkbox: false},
 		PropBookmarked: notionapi.CheckboxProperty{Checkbox: false},
 		PropHidden:     notionapi.CheckboxProperty{Checkbox: false},
+		PropApplied:    notionapi.CheckboxProperty{Checkbox: false},
 		PropExpired:    notionapi.CheckboxProperty{Checkbox: false},
 	}
 
@@ -199,6 +206,10 @@ func (c *Client) UpdateCareerLevel(ctx context.Context, id, level string) error 
 	return c.updateSelectProperty(ctx, id, PropCareerLevel, level)
 }
 
+func (c *Client) UpdateEmploymentType(ctx context.Context, id, employmentType string) error {
+	return c.updateSelectProperty(ctx, id, PropEmploymentType, employmentType)
+}
+
 func (c *Client) UpdateMinYearsExperience(ctx context.Context, id string, years int) error {
 	_, err := c.api.Page.Update(ctx, notionapi.PageID(id), &notionapi.PageUpdateRequest{
 		Properties: notionapi.Properties{
@@ -207,6 +218,26 @@ func (c *Client) UpdateMinYearsExperience(ctx context.Context, id string, years 
 	})
 	if err != nil {
 		return fmt.Errorf("update minimum experience for %s: %w", id, err)
+	}
+	return nil
+}
+
+func (c *Client) EnsureDescription(ctx context.Context, id, description string) error {
+	if strings.TrimSpace(description) == "" {
+		return nil
+	}
+	children, err := c.api.Block.GetChildren(ctx, notionapi.BlockID(id), &notionapi.Pagination{PageSize: 1})
+	if err != nil {
+		return fmt.Errorf("read description for %s: %w", id, err)
+	}
+	if len(children.Results) > 0 {
+		return nil
+	}
+	_, err = c.api.Block.AppendChildren(ctx, notionapi.BlockID(id), &notionapi.AppendBlockChildrenRequest{
+		Children: descriptionBlocks(description),
+	})
+	if err != nil {
+		return fmt.Errorf("append description for %s: %w", id, err)
 	}
 	return nil
 }
@@ -297,6 +328,18 @@ func chunkString(s string, size int) []string {
 // DeletePosting archives the page, which is Notion's recoverable delete.
 // It no longer appears in database queries or the macOS app, but can be
 // restored from Notion's trash if needed.
+func (c *Client) MarkExpired(ctx context.Context, id string) error {
+	_, err := c.api.Page.Update(ctx, notionapi.PageID(id), &notionapi.PageUpdateRequest{
+		Properties: notionapi.Properties{
+			PropExpired: notionapi.CheckboxProperty{Checkbox: true},
+		},
+	})
+	if err != nil {
+		return fmt.Errorf("mark posting %s expired: %w", id, err)
+	}
+	return nil
+}
+
 func (c *Client) DeletePosting(ctx context.Context, id string) error {
 	_, err := c.api.Page.Update(ctx, notionapi.PageID(id), &notionapi.PageUpdateRequest{
 		Archived: true,

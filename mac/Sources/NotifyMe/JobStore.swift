@@ -8,6 +8,7 @@ enum WritableProperty: String {
     case seen = "Seen"
     case bookmarked = "Bookmarked"
     case hidden = "Hidden"
+    case applied = "Applied"
 }
 
 /// One place postings can be read from and written back to. Notion and

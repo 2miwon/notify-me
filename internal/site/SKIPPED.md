@@ -37,3 +37,25 @@ Akamai bot management is also known for aggressively blocking datacenter
 IP ranges, which is exactly what GitHub Actions runners are — so even if
 this specific block clears up, a scheduled crawl from GitHub Actions
 would be a likely ongoing target for it. Skipped.
+
+## Nexon (careers.nexon.com)
+
+Returns HTTP 403 to any non-browser request (checked 2026-09-24 with a
+plain `curl`/Go client) — the block is on the request itself, before any
+listing data is reachable. Same situation as ByteDance: working around a
+deliberate bot block isn't something this crawler does. Skipped.
+
+## HashiCorp
+
+Acquired by IBM; hashicorp.com/careers no longer hosts its own listings
+(and currently answers plain requests with HTTP 429). HashiCorp roles are
+posted on IBM's careers site now, which is a separate, much larger ATS
+integration — not worth adding for a few HashiCorp-branded roles that
+would rarely be Korea-eligible anyway. Skipped.
+
+## Yanolja — not skipped, but note
+
+careers.yanolja.co is a GreetingHR-built brand site whose "openings" query
+is always empty; its actual listings live on Workday
+(yanolja.wd102.myworkdayjobs.com / External_Yanolja), which is what the
+`yanolja` config entry crawls via internal/site/workday.

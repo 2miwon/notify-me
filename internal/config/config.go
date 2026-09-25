@@ -95,6 +95,10 @@ type SiteConfig struct {
 	NetflixLocations []string `yaml:"netflix_locations"`
 	NetflixDevOnly   bool     `yaml:"netflix_dev_only"`
 
+	// meta: rendered by Chromium only; see internal/site/meta. This filters
+	// the Seoul search result to software/engineering titles.
+	MetaDevOnly bool `yaml:"meta_dev_only"`
+
 	// nvidia: search query/location submitted to jobs.nvidia.com.
 	NvidiaQuery    string `yaml:"nvidia_query"`
 	NvidiaLocation string `yaml:"nvidia_location"`
@@ -110,6 +114,9 @@ type SiteConfig struct {
 	GreetinghrBaseURL  string `yaml:"greetinghr_base_url"`
 	GreetinghrListPath string `yaml:"greetinghr_list_path"`
 	GreetinghrCompany  string `yaml:"greetinghr_company"`
+	// GreetinghrDevOnly filters by occupation/job/title when the ListPath
+	// can't pre-filter to dev roles (see greetinghr.Adapter.DevOnly).
+	GreetinghrDevOnly bool `yaml:"greetinghr_dev_only"`
 
 	// sap: filtered search path+query on jobs.sap.com, copied verbatim
 	// from the site. SAPDevOnly mirrors microsoft_dev_only — see
@@ -125,11 +132,13 @@ type SiteConfig struct {
 	NinehireCompany   string `yaml:"ninehire_company"`
 	NinehireDevOnly   bool   `yaml:"ninehire_dev_only"`
 
-	// ashby: company slug + exact location allow-list against
+	// ashby: company slug + location allow-list (case-insensitive
+	// substring, checked against primary and secondary locations) against
 	// api.ashbyhq.com's public job-board API — see internal/site/ashby.
 	AshbyCompanySlug string   `yaml:"ashby_company_slug"`
 	AshbyCompany     string   `yaml:"ashby_company"`
 	AshbyLocations   []string `yaml:"ashby_locations"`
+	AshbyDevOnly     bool     `yaml:"ashby_dev_only"`
 
 	// lever: company slug + exact country/team allow-lists against
 	// api.lever.co's public postings API — see internal/site/lever.
@@ -137,6 +146,7 @@ type SiteConfig struct {
 	LeverCompany     string   `yaml:"lever_company"`
 	LeverCountries   []string `yaml:"lever_countries"`
 	LeverTeams       []string `yaml:"lever_teams"`
+	LeverDevOnly     bool     `yaml:"lever_dev_only"`
 
 	// greenhouse: company slug + location allow-list against
 	// boards-api.greenhouse.io's public Job Board API — see
@@ -145,6 +155,33 @@ type SiteConfig struct {
 	GreenhouseCompany     string   `yaml:"greenhouse_company"`
 	GreenhouseLocations   []string `yaml:"greenhouse_locations"`
 	GreenhouseDevOnly     bool     `yaml:"greenhouse_dev_only"`
+
+	// automattic: no location filter exists (see internal/site/automattic
+	// package doc) — DevOnly is its only knob.
+	AutomatticDevOnly bool `yaml:"automattic_dev_only"`
+
+	// Bespoke Korean game/commerce adapters whose only knob is DevOnly —
+	// see each internal/site/<name> package for what counts as dev.
+	NetmarbleDevOnly   bool `yaml:"netmarble_dev_only"`
+	NcsoftDevOnly      bool `yaml:"ncsoft_dev_only"`
+	BucketplaceDevOnly bool `yaml:"bucketplace_dev_only"`
+
+	// shopify: location substring allow-list + DevOnly — see
+	// internal/site/shopify.
+	ShopifyLocations []string `yaml:"shopify_locations"`
+	ShopifyDevOnly   bool     `yaml:"shopify_dev_only"`
+
+	// workday: any Workday "myworkdayjobs.com" career site — see
+	// internal/site/workday for where host/tenant/site come from. Any
+	// sites: entry with workday_host set becomes a workday adapter named
+	// after its key.
+	WorkdayHost       string   `yaml:"workday_host"`
+	WorkdayTenant     string   `yaml:"workday_tenant"`
+	WorkdaySite       string   `yaml:"workday_site"`
+	WorkdayCompany    string   `yaml:"workday_company"`
+	WorkdaySearchText string   `yaml:"workday_search_text"`
+	WorkdayLocations  []string `yaml:"workday_locations"`
+	WorkdayDevOnly    bool     `yaml:"workday_dev_only"`
 }
 
 type Config struct {

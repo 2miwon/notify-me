@@ -177,6 +177,7 @@ private struct NotionPage: Decodable {
             seen: properties["Seen"]?.boolValue ?? false,
             bookmarked: properties["Bookmarked"]?.boolValue ?? false,
             hidden: properties["Hidden"]?.boolValue ?? false,
+            applied: properties["Applied"]?.boolValue ?? false,
             expired: properties["Expired"]?.boolValue ?? false,
             employmentType: properties["Employment Type"]?.selectName ?? "",
             careerLevel: properties["Career Level"]?.selectName ?? "",

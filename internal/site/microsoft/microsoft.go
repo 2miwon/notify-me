@@ -21,7 +21,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -157,10 +156,6 @@ func (a *Adapter) fetchSearchPage(start int) (*searchResponse, error) {
 	if err := a.getJSON(reqURL, &out); err != nil {
 		return nil, err
 	}
-	// TEMPORARY debug line — investigating why this returns 0 positions
-	// from GitHub Actions' runner IPs but real results from elsewhere.
-	// Remove once diagnosed.
-	log.Printf("microsoft: debug: url=%s count=%d positions=%d", reqURL, out.Data.Count, len(out.Data.Positions))
 	return &out, nil
 }
 

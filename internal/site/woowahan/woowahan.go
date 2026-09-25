@@ -18,6 +18,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/2miwon/notify-me/internal/htmlutil"
 	"github.com/2miwon/notify-me/internal/job"
 )
 
@@ -65,6 +66,18 @@ type listItem struct {
 	IsUnlimitedEndDate bool   `json:"isUnlimitedEndDate"`
 }
 
+// detailResponse is returned by GET /w1/recruits/{recruitNumber}. The list
+// endpoint deliberately omits the rich body and career restriction, so both
+// must be hydrated before a posting is stored.
+type detailResponse struct {
+	Code    string `json:"code"`
+	Message string `json:"message"`
+	Data    struct {
+		RecruitContents           string `json:"recruitContents"`
+		CareerRestrictionMinYears int    `json:"careerRestrictionMinYears"`
+	} `json:"data"`
+}
+
 func (a *Adapter) Fetch() ([]job.Posting, error) {
 	if a.client == nil {
 		a.client = &http.Client{Timeout: 20 * time.Second}
@@ -96,7 +109,17 @@ func (a *Adapter) Fetch() ([]job.Posting, error) {
 			if !item.IsUnlimitedEndDate && hasDeadline {
 				p.ApplicationDeadline = &deadline
 			}
-			p.MinYearsExperience = job.ExtractMinYearsExperience(p.Title)
+			detail, err := a.fetchDetail(item.RecruitNumber)
+			if err != nil {
+				return postings, fmt.Errorf("woowahan: detail %s: %w", item.RecruitNumber, err)
+			}
+			p.Description = htmlutil.StripToText(detail.Data.RecruitContents)
+			if detail.Data.CareerRestrictionMinYears > 0 {
+				years := detail.Data.CareerRestrictionMinYears
+				p.MinYearsExperience = &years
+			} else {
+				p.MinYearsExperience = job.ExtractMinYearsExperience(p.Title + "\n" + p.Description)
+			}
 			postings = append(postings, p)
 		}
 		// The API uses zero-based page requests but reports pageNumber as
@@ -108,17 +131,45 @@ func (a *Adapter) Fetch() ([]job.Posting, error) {
 	return postings, nil
 }
 
+func (a *Adapter) fetchDetail(recruitNumber string) (*detailResponse, error) {
+	req, err := http.NewRequest(http.MethodGet, listURL+"/"+url.PathEscape(recruitNumber), nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("User-Agent", userAgent)
+	req.Header.Set("Accept", "application/json")
+	resp, err := a.client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("unexpected status %d", resp.StatusCode)
+	}
+	var out detailResponse
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		return nil, fmt.Errorf("decode response: %w", err)
+	}
+	if out.Code != "2000" {
+		return nil, fmt.Errorf("API error %s: %s", out.Code, out.Message)
+	}
+	return &out, nil
+}
+
 func (a *Adapter) fetchPage(page int) (*response, error) {
+	// The API treats a present-but-empty employmentTypeCodes as "match no
+	// employment type" rather than "no filter" (confirmed live: adding
+	// employmentTypeCodes= alone against an otherwise-working query drops
+	// its result count to 0) — so unused filters are simply omitted
+	// rather than sent blank, the same way jobCodes already is when
+	// there's nothing to filter by.
 	query := url.Values{
-		"recruitCampaignSeq":  {"0"},
-		"jobGroupCodes":       {strings.Join(a.JobGroupCodes, ",")},
-		"jobCodes":            {strings.Join(a.JobCodes, ",")},
-		"careerPeriod":        {""},
-		"keyword":             {""},
-		"employmentTypeCodes": {""},
-		"page":                {fmt.Sprint(page)},
-		"size":                {fmt.Sprint(pageSize)},
-		"sort":                {"updateDate,desc"},
+		"recruitCampaignSeq": {"0"},
+		"jobGroupCodes":      {strings.Join(a.JobGroupCodes, ",")},
+		"jobCodes":           {strings.Join(a.JobCodes, ",")},
+		"page":               {fmt.Sprint(page)},
+		"size":               {fmt.Sprint(pageSize)},
+		"sort":               {"updateDate,desc"},
 	}
 	req, err := http.NewRequest(http.MethodGet, listURL+"?"+query.Encode(), nil)
 	if err != nil {

@@ -6,7 +6,7 @@
 // Required environment variables:
 //
 //	NOTION_TOKEN       Notion internal integration secret
-//	NOTION_DATABASE_ID Target database ID
+//	NOTION_JOBS_DATABASE_ID Target Jobs database ID (NOTION_DATABASE_ID also works during migration)
 package main
 
 import (
@@ -20,9 +20,12 @@ import (
 
 func main() {
 	token := os.Getenv("NOTION_TOKEN")
-	databaseID := os.Getenv("NOTION_DATABASE_ID")
+	databaseID := os.Getenv("NOTION_JOBS_DATABASE_ID")
+	if databaseID == "" {
+		databaseID = os.Getenv("NOTION_DATABASE_ID")
+	}
 	if token == "" || databaseID == "" {
-		log.Fatal("NOTION_TOKEN and NOTION_DATABASE_ID must be set")
+		log.Fatal("NOTION_TOKEN and NOTION_JOBS_DATABASE_ID (or legacy NOTION_DATABASE_ID) must be set")
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)

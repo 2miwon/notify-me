@@ -62,10 +62,41 @@ type posting struct {
 	Location struct {
 		Name string `json:"name"`
 	} `json:"location"`
+	Departments []struct {
+		Name string `json:"name"`
+	} `json:"departments"`
 	AbsoluteURL    string `json:"absolute_url"`
 	Content        string `json:"content"`
 	FirstPublished string `json:"first_published"`
+	// Metadata is each company's own custom fields — free-form names and
+	// values, but a few companies expose employment type/deadline here
+	// (Toss: "Employment_Type" = "정규직", "...클로징 일자" = "2026-10-19";
+	// Canonical: "Employment Length" = "Full-time"/"Permanent").
+	Metadata []struct {
+		Name  string          `json:"name"`
+		Value json.RawMessage `json:"value"`
+	} `json:"metadata"`
 }
+
+// metadataString returns the first string-valued custom field whose name
+// contains any of the given fragments (case-insensitive).
+func (p posting) metadataString(fragments ...string) string {
+	for _, m := range p.Metadata {
+		name := strings.ToLower(m.Name)
+		for _, f := range fragments {
+			if !strings.Contains(name, f) {
+				continue
+			}
+			var s string
+			if json.Unmarshal(m.Value, &s) == nil && strings.TrimSpace(s) != "" {
+				return strings.TrimSpace(s)
+			}
+		}
+	}
+	return ""
+}
+
+var kst = time.FixedZone("KST", 9*60*60)
 
 func (a *Adapter) Fetch() ([]job.Posting, error) {
 	if a.client == nil {
@@ -102,7 +133,7 @@ func (a *Adapter) Fetch() ([]job.Posting, error) {
 			continue
 		}
 		title := strings.TrimSpace(p.Title)
-		if a.DevOnly && !devRelated(title) {
+		if a.DevOnly && !devRelated(title, departmentNames(p.Departments)) {
 			continue
 		}
 
@@ -125,6 +156,19 @@ func (a *Adapter) Fetch() ([]job.Posting, error) {
 		if t, err := time.Parse(time.RFC3339, p.FirstPublished); err == nil {
 			jp.ApplicationStart = &t
 		}
+		// Greenhouse has no standard employment-type/career field: prefer
+		// what the title itself says (KRAFTON writes "(5년 이상 / 계약직)"),
+		// then the company's own custom field if it has one.
+		jp.EmploymentType = job.EmploymentTypeFromTitle(title)
+		if jp.EmploymentType == "" {
+			jp.EmploymentType = job.CanonicalKoreanEmploymentType(p.metadataString("employment"))
+		}
+		jp.CareerLevel = job.CareerLevelFromTitle(title)
+		if deadline := p.metadataString("클로징 일자", "deadline"); deadline != "" {
+			if t, err := time.ParseInLocation("2006-01-02", deadline, kst); err == nil {
+				jp.ApplicationDeadline = &t
+			}
+		}
 		jp.MinYearsExperience = job.ExtractMinYearsExperience(jp.Title + "\n" + jp.Description)
 		out = append(out, jp)
 	}
@@ -144,17 +188,38 @@ func matchesLocation(location string, allowed []string) bool {
 	return false
 }
 
-var devTitleKeywords = []string{
-	"engineer", "developer", "swe", "software", "sre", "devops",
-	"architect", "programmer", "scientist",
-	"엔지니어", "개발자", "과학자",
+// devDepartmentHints catches a posting whose department is clearly
+// technical even when its title alone wouldn't be enough to tell — e.g.
+// Canonical's "Embedded Linux Consultant" or "Technical Author" sit under
+// "Field Engineering"/"Excellence Engineering" without "engineer"
+// anywhere in the title itself.
+var devDepartmentHints = []string{"engineering", "sre"}
+
+func departmentNames(departments []struct {
+	Name string `json:"name"`
+}) []string {
+	names := make([]string, len(departments))
+	for i, d := range departments {
+		names[i] = d.Name
+	}
+	return names
 }
 
-func devRelated(title string) bool {
-	lower := strings.ToLower(title)
-	for _, kw := range devTitleKeywords {
-		if strings.Contains(lower, strings.ToLower(kw)) {
-			return true
+func devRelated(title string, departments []string) bool {
+	if job.IsDevTitle(title) {
+		return true
+	}
+	// A PM/analyst/compliance title under an engineering department
+	// isn't a dev role — see job.IsNonDevTitle.
+	if job.IsNonDevTitle(title) {
+		return false
+	}
+	for _, dept := range departments {
+		deptLower := strings.ToLower(dept)
+		for _, hint := range devDepartmentHints {
+			if strings.Contains(deptLower, hint) {
+				return true
+			}
 		}
 	}
 	return false

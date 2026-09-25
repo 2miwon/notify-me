@@ -23,22 +23,25 @@ import (
 	"github.com/2miwon/notify-me/internal/job"
 )
 
-// Adapter crawls one Ashby job board. Locations is an exact-match allow-
-// list (OR'd) against Ashby's own `location` string — find exact values
-// by fetching the board once with no filter and reading back what the
-// company you want actually uses (see this package's doc). Empty means
-// no restriction.
+// Adapter crawls one Ashby job board. Locations is a case-insensitive
+// substring allow-list (OR'd) checked against Ashby's primary `location`
+// and every `secondaryLocations` entry — a remote-friendly posting often
+// lists "Remote - APAC" only as a secondary location. Empty means no
+// restriction.
 type Adapter struct {
 	CompanySlug string
 	// Company is the display name stored on each posting.
 	Company   string
 	Locations []string
+	// DevOnly keeps only postings whose department/team or title looks
+	// technical (job.IsDevCategory OR job.IsDevTitle).
+	DevOnly bool
 
 	client *http.Client
 }
 
-func New(companySlug, company string, locations []string) *Adapter {
-	return &Adapter{CompanySlug: companySlug, Company: company, Locations: locations, client: &http.Client{Timeout: 30 * time.Second}}
+func New(companySlug, company string, locations []string, devOnly bool) *Adapter {
+	return &Adapter{CompanySlug: companySlug, Company: company, Locations: locations, DevOnly: devOnly, client: &http.Client{Timeout: 30 * time.Second}}
 }
 
 func (a *Adapter) Name() string { return a.CompanySlug }
@@ -58,6 +61,18 @@ type listing struct {
 	IsListed       bool   `json:"isListed"`
 	JobURL         string `json:"jobUrl"`
 	Description    string `json:"descriptionPlain"`
+
+	SecondaryLocations []struct {
+		Location string `json:"location"`
+	} `json:"secondaryLocations"`
+}
+
+func (l listing) locations() []string {
+	out := []string{l.Location}
+	for _, s := range l.SecondaryLocations {
+		out = append(out, s.Location)
+	}
+	return out
 }
 
 func (a *Adapter) Fetch() ([]job.Posting, error) {
@@ -91,7 +106,10 @@ func (a *Adapter) Fetch() ([]job.Posting, error) {
 
 	postings := make([]job.Posting, 0, len(data.Jobs))
 	for _, item := range data.Jobs {
-		if !item.IsListed || !matches(item.Location, a.Locations) {
+		if !item.IsListed || !matchesAny(item.locations(), a.Locations) {
+			continue
+		}
+		if a.DevOnly && !job.LooksDev(item.Title, item.Department, item.Team) {
 			continue
 		}
 		postedAt, _ := time.Parse(time.RFC3339Nano, item.PublishedAt)
@@ -110,13 +128,16 @@ func (a *Adapter) Fetch() ([]job.Posting, error) {
 	return postings, nil
 }
 
-func matches(value string, allowed []string) bool {
+func matchesAny(values, allowed []string) bool {
 	if len(allowed) == 0 {
 		return true
 	}
-	for _, candidate := range allowed {
-		if strings.EqualFold(strings.TrimSpace(value), strings.TrimSpace(candidate)) {
-			return true
+	for _, value := range values {
+		lower := strings.ToLower(value)
+		for _, candidate := range allowed {
+			if c := strings.ToLower(strings.TrimSpace(candidate)); c != "" && strings.Contains(lower, c) {
+				return true
+			}
 		}
 	}
 	return false

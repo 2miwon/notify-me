@@ -27,8 +27,14 @@ final class CredentialsStore: ObservableObject {
     @Published var notionToken: String {
         didSet { UserDefaults.standard.set(notionToken, forKey: Keys.notionToken) }
     }
-    @Published var notionDatabaseID: String {
-        didSet { UserDefaults.standard.set(notionDatabaseID, forKey: Keys.notionDatabaseID) }
+    @Published var notionJobsDatabaseID: String {
+        didSet { UserDefaults.standard.set(notionJobsDatabaseID, forKey: Keys.notionJobsDatabaseID) }
+    }
+    @Published var notionFreelanceDatabaseID: String {
+        didSet { UserDefaults.standard.set(notionFreelanceDatabaseID, forKey: Keys.notionFreelanceDatabaseID) }
+    }
+    @Published var notionOpportunitiesDatabaseID: String {
+        didSet { UserDefaults.standard.set(notionOpportunitiesDatabaseID, forKey: Keys.notionOpportunitiesDatabaseID) }
     }
     /// Whole contents of a Google service-account key JSON file, pasted
     /// as-is.
@@ -55,7 +61,12 @@ final class CredentialsStore: ObservableObject {
     private enum Keys {
         static let backend = "store.backend"
         static let notionToken = "notion.token"
-        static let notionDatabaseID = "notion.databaseID"
+        // `notion.databaseID` is the pre-workspace single Jobs database.
+        // Keep it only as a one-time migration source in init().
+        static let legacyNotionDatabaseID = "notion.databaseID"
+        static let notionJobsDatabaseID = "notion.jobsDatabaseID"
+        static let notionFreelanceDatabaseID = "notion.freelanceDatabaseID"
+        static let notionOpportunitiesDatabaseID = "notion.opportunitiesDatabaseID"
         static let sheetsServiceAccountJSON = "sheets.serviceAccountJSON"
         static let sheetsSpreadsheetID = "sheets.spreadsheetID"
         static let sheetsSheetName = "sheets.sheetName"
@@ -66,7 +77,10 @@ final class CredentialsStore: ObservableObject {
         let defaults = UserDefaults.standard
         backend = StoreBackend(rawValue: defaults.string(forKey: Keys.backend) ?? "") ?? .notion
         notionToken = defaults.string(forKey: Keys.notionToken) ?? ""
-        notionDatabaseID = defaults.string(forKey: Keys.notionDatabaseID) ?? ""
+        let legacyNotionDatabaseID = defaults.string(forKey: Keys.legacyNotionDatabaseID) ?? ""
+        notionJobsDatabaseID = defaults.string(forKey: Keys.notionJobsDatabaseID) ?? legacyNotionDatabaseID
+        notionFreelanceDatabaseID = defaults.string(forKey: Keys.notionFreelanceDatabaseID) ?? ""
+        notionOpportunitiesDatabaseID = defaults.string(forKey: Keys.notionOpportunitiesDatabaseID) ?? ""
         sheetsServiceAccountJSON = defaults.string(forKey: Keys.sheetsServiceAccountJSON) ?? ""
         sheetsSpreadsheetID = defaults.string(forKey: Keys.sheetsSpreadsheetID) ?? ""
         sheetsSheetName = defaults.string(forKey: Keys.sheetsSheetName) ?? ""
@@ -84,7 +98,7 @@ final class CredentialsStore: ObservableObject {
     var isConfigured: Bool {
         switch backend {
         case .notion:
-            return !notionToken.isEmpty && !notionDatabaseID.isEmpty
+            return !notionToken.isEmpty && !notionJobsDatabaseID.isEmpty
         case .sheets:
             return !sheetsServiceAccountJSON.isEmpty && !sheetsSpreadsheetID.isEmpty
         }
@@ -96,7 +110,7 @@ final class CredentialsStore: ObservableObject {
     func makeStore() throws -> JobStore {
         switch backend {
         case .notion:
-            return NotionClient(token: notionToken, databaseID: notionDatabaseID)
+            return NotionClient(token: notionToken, databaseID: notionJobsDatabaseID)
         case .sheets:
             return try GoogleSheetsStore(
                 serviceAccountJSON: Data(sheetsServiceAccountJSON.utf8),

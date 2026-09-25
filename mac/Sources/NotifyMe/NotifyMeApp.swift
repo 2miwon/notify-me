@@ -28,7 +28,7 @@ struct NotifyMeApp: App {
         .windowResizability(.contentMinSize)
         .defaultSize(width: 960, height: 640)
         .commands {
-            CommandMenu("View") {
+            CommandMenu("Actions") {
                 Button("Refresh") {
                     NotificationCenter.default.post(name: .refreshPostings, object: nil)
                 }

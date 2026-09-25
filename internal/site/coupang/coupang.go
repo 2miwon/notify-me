@@ -79,7 +79,23 @@ func (a *Adapter) Fetch() ([]job.Posting, error) {
 
 	postings := make([]job.Posting, 0)
 	for _, item := range body.Jobs {
-		if item.ID == 0 || strings.TrimSpace(item.Title) == "" || !matchesLocation(item.Location.Name, a.Locations) || !matchesDepartment(item.Departments, a.Departments) {
+		if item.ID == 0 || strings.TrimSpace(item.Title) == "" || !matchesLocation(item.Location.Name, a.Locations) {
+			continue
+		}
+		// matchesDepartment's exact allow-list was configured against
+		// Coupang's department names as of whenever it was set up; the
+		// company has since split into ~60 differently-branded business
+		// units (Coupang Pay Tech, Eats Tech, CPLB, Supernova, ...), most
+		// with their own tech org under a name that shares nothing with
+		// the old list. Rather than re-guess a list that will just go
+		// stale again, this now also passes if the department name
+		// itself says "tech" or the title reads like an engineering
+		// role — confirmed live: this catches the dev roles hiding in
+		// otherwise non-obvious departments (e.g. "Senior DevOps
+		// Engineer" under "Security & Privacy and Data Governance")
+		// that the configured department list alone was silently
+		// dropping.
+		if !matchesDepartment(item.Departments, a.Departments) && !hasTechDepartment(item.Departments) && !devRelated(item.Title) {
 			continue
 		}
 		description := htmlToText(item.Content)
@@ -130,6 +146,33 @@ func matchesDepartment(departments []struct {
 			if strings.EqualFold(strings.TrimSpace(department.Name), strings.TrimSpace(candidate)) {
 				return true
 			}
+		}
+	}
+	return false
+}
+
+func hasTechDepartment(departments []struct {
+	Name string `json:"name"`
+}) bool {
+	for _, d := range departments {
+		if strings.Contains(strings.ToLower(d.Name), "tech") {
+			return true
+		}
+	}
+	return false
+}
+
+var devTitleKeywords = []string{
+	"engineer", "developer", "swe", "software", "sre", "devops",
+	"architect", "programmer", "scientist",
+	"엔지니어", "개발자", "과학자",
+}
+
+func devRelated(title string) bool {
+	lower := strings.ToLower(title)
+	for _, kw := range devTitleKeywords {
+		if strings.Contains(lower, kw) {
+			return true
 		}
 	}
 	return false

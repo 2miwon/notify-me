@@ -13,7 +13,10 @@ concurrency:
 jobs:
   crawl:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    # A large first sync can need ~2 minutes just for Notion page creation
+    # at its API rate limit, after fetching every board. Runs are serialized
+    # above, so allow enough time for that write phase to finish cleanly.
+    timeout-minutes: 10
     steps:
       # Only checked out for config/keywords.yaml — no Go toolchain here,
       # the binary comes pre-built from build.yml's "latest" release.
@@ -36,6 +39,7 @@ jobs:
           # string here, which the crawler already treats as "not set".
           STORE_BACKEND: ${{ secrets.STORE_BACKEND }}
           NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+          NOTION_JOBS_DATABASE_ID: ${{ secrets.NOTION_JOBS_DATABASE_ID }}
           NOTION_DATABASE_ID: ${{ secrets.NOTION_DATABASE_ID }}
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
           GOOGLE_SHEETS_SPREADSHEET_ID: ${{ secrets.GOOGLE_SHEETS_SPREADSHEET_ID }}
