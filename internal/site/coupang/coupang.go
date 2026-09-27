@@ -95,7 +95,7 @@ func (a *Adapter) Fetch() ([]job.Posting, error) {
 		// Engineer" under "Security & Privacy and Data Governance")
 		// that the configured department list alone was silently
 		// dropping.
-		if !matchesDepartment(item.Departments, a.Departments) && !hasTechDepartment(item.Departments) && !devRelated(item.Title) {
+		if !job.LooksDev(item.Title, techDepartmentNames(item.Departments)...) {
 			continue
 		}
 		description := htmlToText(item.Content)
@@ -135,47 +135,25 @@ func matchesLocation(location string, allowed []string) bool {
 	return false
 }
 
-func matchesDepartment(departments []struct {
+// techDepartmentNames returns the posting's engineering-branded
+// departments — Coupang names them "<Product> Tech" ("Eats Tech",
+// "Coupang Pay Tech", "Tech Infrastructure"). Other departments are
+// dropped rather than passed as category hints: "Security & Privacy and
+// Data Governance" holds security *operations*, loss prevention and
+// crisis management alongside the security engineers, so its name says
+// nothing about whether a role is engineering. Even a Tech department
+// also holds that product's PMs, designers and analysts — job.LooksDev
+// lets a non-engineering title overrule it.
+func techDepartmentNames(departments []struct {
 	Name string `json:"name"`
-}, allowed []string) bool {
-	if len(allowed) == 0 {
-		return true
-	}
-	for _, department := range departments {
-		for _, candidate := range allowed {
-			if strings.EqualFold(strings.TrimSpace(department.Name), strings.TrimSpace(candidate)) {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-func hasTechDepartment(departments []struct {
-	Name string `json:"name"`
-}) bool {
+}) []string {
+	var names []string
 	for _, d := range departments {
 		if strings.Contains(strings.ToLower(d.Name), "tech") {
-			return true
+			names = append(names, d.Name)
 		}
 	}
-	return false
-}
-
-var devTitleKeywords = []string{
-	"engineer", "developer", "swe", "software", "sre", "devops",
-	"architect", "programmer", "scientist",
-	"엔지니어", "개발자", "과학자",
-}
-
-func devRelated(title string) bool {
-	lower := strings.ToLower(title)
-	for _, kw := range devTitleKeywords {
-		if strings.Contains(lower, kw) {
-			return true
-		}
-	}
-	return false
+	return names
 }
 
 func companyName(raw string) string {

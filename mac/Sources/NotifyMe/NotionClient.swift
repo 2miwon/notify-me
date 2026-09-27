@@ -15,7 +15,13 @@ struct NotionClient: JobStore {
         case http(Int, String)
         var errorDescription: String? {
             switch self {
-            case .http(let code, let body): return "Notion API error \(code): \(body)"
+            case .http(let code, let body):
+                // Gateway errors come back as a whole HTML error page —
+                // never show that markup to the user.
+                if body.contains("<html") || body.contains("<!DOCTYPE") {
+                    return "Notion 서버가 일시적으로 응답하지 않아요 (HTTP \(code)). 잠시 후 자동으로 다시 시도합니다."
+                }
+                return "Notion API error \(code): \(body.prefix(300))"
             }
         }
     }
@@ -51,7 +57,7 @@ struct NotionClient: JobStore {
         ]
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await dataWithRetry(for: request)
         guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
             let status = (response as? HTTPURLResponse)?.statusCode ?? -1
             throw NotionError.http(status, String(data: data, encoding: .utf8) ?? "")
@@ -77,7 +83,7 @@ struct NotionClient: JobStore {
             request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
             request.setValue(apiVersion, forHTTPHeaderField: "Notion-Version")
 
-            let (data, response) = try await URLSession.shared.data(for: request)
+            let (data, response) = try await dataWithRetry(for: request)
             guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
                 let status = (response as? HTTPURLResponse)?.statusCode ?? -1
                 throw NotionError.http(status, String(data: data, encoding: .utf8) ?? "")
@@ -103,7 +109,7 @@ struct NotionClient: JobStore {
         if let startCursor { body["start_cursor"] = startCursor }
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await dataWithRetry(for: request)
         guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
             let status = (response as? HTTPURLResponse)?.statusCode ?? -1
             throw NotionError.http(status, String(data: data, encoding: .utf8) ?? "")
@@ -185,6 +191,7 @@ private struct NotionPage: Decodable {
             applicationDeadline: properties["Application Deadline"]?.dateStart,
             minYearsExperience: properties["Min Years Experience"]?.intValue,
             minimumDegree: properties["Minimum Degree"]?.selectName ?? "",
+			visaSponsorship: properties["Visa Sponsorship"]?.selectName ?? "Not stated",
             description: nil // fetched on demand — see fetchDescription
         )
     }

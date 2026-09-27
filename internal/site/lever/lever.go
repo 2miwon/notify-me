@@ -15,13 +15,16 @@ import (
 	"strings"
 	"time"
 
+	"github.com/2miwon/notify-me/internal/htmlutil"
 	"github.com/2miwon/notify-me/internal/job"
 )
 
 // Adapter crawls one Lever postings board.
 type Adapter struct {
 	CompanySlug string
-	// Company is the display name stored on each posting.
+	// Company is the display name stored on each posting. Empty means use
+	// each posting's own department (Match Group's board mixes Hyperconnect,
+	// Tinder, Match Group AI, ... under one Lever account).
 	Company string
 	// Countries is an exact-match allow-list (OR'd) against Lever's own
 	// `country` field (e.g. "KR"). Empty means no restriction.
@@ -63,6 +66,15 @@ type posting struct {
 		Commitment string `json:"commitment"`
 	} `json:"categories"`
 	DescriptionPlain string `json:"descriptionPlain"`
+	// Lever splits a posting in three: the intro (descriptionPlain), named
+	// bullet sections ("What You'll Do", "Requirements", ...) in lists, and a
+	// closing note (additionalPlain). Reading only the first drops every
+	// requirement and responsibility.
+	Lists []struct {
+		Text    string `json:"text"`
+		Content string `json:"content"`
+	} `json:"lists"`
+	AdditionalPlain string `json:"additionalPlain"`
 }
 
 func (a *Adapter) Fetch() ([]job.Posting, error) {
@@ -108,22 +120,37 @@ func (a *Adapter) Fetch() ([]job.Posting, error) {
 			t := time.UnixMilli(p.CreatedAt).UTC()
 			appStart = &t
 		}
+		company := a.Company
+		if company == "" {
+			company = strings.TrimSpace(p.Categories.Department)
+		}
 		jp := job.Posting{
 			Site:             a.Name(),
 			ExternalID:       p.ID,
 			Title:            strings.TrimSpace(p.Text),
-			Company:          a.Company,
+			Company:          company,
 			URL:              p.HostedURL,
 			Location:         p.Categories.Location,
 			EmploymentType:   commitment(p.Categories.Commitment),
 			PostedAt:         postedAt,
 			ApplicationStart: appStart,
-			Description:      normalizeText(p.DescriptionPlain),
+			Description:      p.fullDescription(),
 		}
 		jp.MinYearsExperience = job.ExtractMinYearsExperience(jp.Title + "\n" + jp.Description)
 		out = append(out, jp)
 	}
 	return out, nil
+}
+
+// fullDescription stitches together the intro, each bullet section
+// (heading, then one line per <li>) and the closing note.
+func (p posting) fullDescription() string {
+	parts := []string{p.DescriptionPlain}
+	for _, l := range p.Lists {
+		parts = append(parts, l.Text, htmlutil.StripToText(strings.NewReplacer("</li>", "\n", "<br>", "\n", "<br/>", "\n").Replace(l.Content)))
+	}
+	parts = append(parts, p.AdditionalPlain)
+	return normalizeText(strings.Join(parts, "\n"))
 }
 
 // normalizeText collapses runs of blank lines in Lever's already-plain-text

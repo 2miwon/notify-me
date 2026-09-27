@@ -35,6 +35,7 @@ var requiredProperties = map[string]string{
 	PropApplicationDeadline: "date",
 	PropMinYearsExperience:  "number",
 	PropMinimumDegree:       "select",
+	PropVisaSponsorship:     "select",
 }
 
 // EnsureSchema provisions a database for this package: renames its title

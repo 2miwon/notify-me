@@ -29,6 +29,7 @@ type ExistingPosting struct {
 	EmploymentType     string
 	CareerLevel        string
 	MinYearsExperience *int
+	VisaSponsorship    string
 }
 
 // Store is one place postings can be written to and read back from.
@@ -53,6 +54,8 @@ type Store interface {
 	UpdateEmploymentType(ctx context.Context, id, employmentType string) error
 	// UpdateMinYearsExperience refreshes an extracted career requirement.
 	UpdateMinYearsExperience(ctx context.Context, id string, years int) error
+	// UpdateVisaSponsorship refreshes the explicit visa-support classification.
+	UpdateVisaSponsorship(ctx context.Context, id, sponsorship string) error
 	// EnsureDescription backfills a page body only when it is empty. It is
 	// used when an adapter gains detail-page parsing after records already
 	// exist in the store, and must never overwrite a non-empty body.

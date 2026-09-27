@@ -166,6 +166,15 @@ type SiteConfig struct {
 	NcsoftDevOnly      bool `yaml:"ncsoft_dev_only"`
 	BucketplaceDevOnly bool `yaml:"bucketplace_dev_only"`
 
+	// roundhr: company code (the subdomain of <code>.recruit.roundhr.com)
+	// — see internal/site/roundhr. Any sites: entry with roundhr_code set
+	// becomes a roundhr adapter.
+	RoundhrCode    string `yaml:"roundhr_code"`
+	RoundhrCompany string `yaml:"roundhr_company"`
+	RoundhrDevOnly bool   `yaml:"roundhr_dev_only"`
+
+	BanksaladDevOnly bool `yaml:"banksalad_dev_only"`
+
 	// shopify: location substring allow-list + DevOnly — see
 	// internal/site/shopify.
 	ShopifyLocations []string `yaml:"shopify_locations"`
@@ -196,6 +205,10 @@ type Config struct {
 	// ExcludeKeywords always drops a posting whose title contains any of
 	// them, even if it also matched Keywords.
 	ExcludeKeywords []string `yaml:"exclude_keywords"`
+	// ExcludeCompanies drops a posting whose company name contains any of
+	// these (case-insensitive substring) — the way to skip one company, or
+	// one subsidiary of a multi-company site (e.g. "넷마블네오", "Tinder").
+	ExcludeCompanies []string `yaml:"exclude_companies"`
 	// EmploymentTypes/CareerLevels, if non-empty, keep only postings whose
 	// site-reported value (job.Posting.EmploymentType/CareerLevel) is in
 	// the list. A posting whose site doesn't report that field at all
@@ -263,6 +276,12 @@ func (c *Config) MatchesLocation(location string) bool {
 // always wins even if the title also happens to match an include keyword.
 func (c *Config) ExcludedByKeyword(title string) bool {
 	return len(c.ExcludeKeywords) > 0 && containsAny(title, c.ExcludeKeywords)
+}
+
+// ExcludedCompany reports whether a posting's company is on the
+// exclude_companies list.
+func (c *Config) ExcludedCompany(company string) bool {
+	return len(c.ExcludeCompanies) > 0 && containsAny(company, c.ExcludeCompanies)
 }
 
 // MatchesEmploymentType reports whether a posting's employment type

@@ -12,7 +12,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"html"
+	"io"
 	"net/http"
+	"regexp"
 	"strings"
 	"time"
 
@@ -143,6 +145,14 @@ func (a *Adapter) Fetch() ([]job.Posting, error) {
 		// it as HTML, or the tags never get recognized as tags at all.
 		description := htmlutil.StripToText(html.UnescapeString(p.Content))
 
+		if len([]rune(description)) < shortDescriptionRunes {
+			// Some companies (Toss) keep the real JD on their own career
+			// page and leave Greenhouse's content as a stub like "#LI-DNI".
+			if full := a.fetchCareerPageDescription(p.AbsoluteURL); len([]rune(full)) > len([]rune(description)) {
+				description = full
+			}
+		}
+
 		jp := job.Posting{
 			Site:        a.Name(),
 			ExternalID:  fmt.Sprintf("%d", p.ID),
@@ -223,4 +233,98 @@ func devRelated(title string, departments []string) bool {
 		}
 	}
 	return false
+}
+
+// shortDescriptionRunes is below any real job description; anything
+// shorter is treated as a stub worth looking up elsewhere.
+const shortDescriptionRunes = 200
+
+var (
+	nextDataPattern = regexp.MustCompile(`(?s)<script id="__NEXT_DATA__"[^>]*>(.*?)</script>`)
+	markdownMarks   = strings.NewReplacer("**", "", "__", "")
+)
+
+// fetchCareerPageDescription reads a description off a company's own
+// Next.js career page (absolute_url), for postings whose Greenhouse
+// content is only a stub. Toss's page embeds the job as a JSON string in
+// a react-query cache entry: {"job": {"description": "<markdown>"}}.
+// Returns "" when the page isn't reachable or doesn't have that shape —
+// the caller keeps whatever it already had.
+func (a *Adapter) fetchCareerPageDescription(pageURL string) string {
+	if !strings.HasPrefix(pageURL, "https://") || strings.Contains(pageURL, "greenhouse.io") {
+		return ""
+	}
+	req, err := http.NewRequest(http.MethodGet, pageURL, nil)
+	if err != nil {
+		return ""
+	}
+	req.Header.Set("User-Agent", "Mozilla/5.0 (compatible; notify-me-crawler/1.0)")
+	resp, err := a.client.Do(req)
+	if err != nil {
+		return ""
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return ""
+	}
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return ""
+	}
+	m := nextDataPattern.FindSubmatch(body)
+	if m == nil {
+		return ""
+	}
+	var root any
+	if json.Unmarshal(m[1], &root) != nil {
+		return ""
+	}
+	return normalizeMarkdown(findJobDescription(root))
+}
+
+// findJobDescription walks decoded JSON for a string value that itself
+// parses to {"job": {"description": "..."}} (react-query dehydrates
+// some payloads as JSON-in-a-string).
+func findJobDescription(node any) string {
+	switch v := node.(type) {
+	case map[string]any:
+		for _, child := range v {
+			if d := findJobDescription(child); d != "" {
+				return d
+			}
+		}
+	case []any:
+		for _, child := range v {
+			if d := findJobDescription(child); d != "" {
+				return d
+			}
+		}
+	case string:
+		if !strings.Contains(v, `"description"`) || !strings.HasPrefix(strings.TrimSpace(v), "{") {
+			return ""
+		}
+		var payload struct {
+			Job struct {
+				Description string `json:"description"`
+			} `json:"job"`
+		}
+		if json.Unmarshal([]byte(v), &payload) == nil {
+			return payload.Job.Description
+		}
+	}
+	return ""
+}
+
+// normalizeMarkdown flattens light markdown (bold marks, "# " headings)
+// to plain lines, matching the plain-text descriptions of other adapters.
+func normalizeMarkdown(source string) string {
+	var lines []string
+	for _, raw := range strings.Split(markdownMarks.Replace(source), "\n") {
+		line := strings.TrimSpace(strings.TrimLeft(strings.TrimSpace(raw), "#"))
+		line = strings.Join(strings.Fields(line), " ")
+		if line != "" {
+			lines = append(lines, line)
+		}
+	}
+	return strings.Join(lines, "\n")
 }

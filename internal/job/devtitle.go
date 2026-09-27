@@ -12,8 +12,8 @@ var devTitleKeywords = []string{
 	"architect", "programmer", "scientist", "backend", "back-end",
 	"frontend", "front-end", "full-stack", "fullstack", "tech lead",
 	"server develop", "security research", "machine learning",
-	"researcher", "forward deployed", "data pipeline",
-	"security analyst", "system security", "it security",
+	"researcher", "forward deployed",
+	"it security",
 	"엔지니어", "개발자", "프로그래머", "과학자", "연구원", "전문연구요원",
 	"백엔드", "프론트엔드", "풀스택",
 }
@@ -24,7 +24,17 @@ var weakDevTitleKeywords = []string{"개발"}
 
 // nonDevTitlePhrases are removed before keyword matching so that e.g.
 // "UX Researcher" doesn't count as "researcher".
-var nonDevTitlePhrases = []string{"사업개발", "business develop", "ux research", "user research"}
+var nonDevTitlePhrases = []string{"사업개발", "사업 개발", "business develop", "ux research", "user research"}
+
+// hardNonDevTitleHints overrule even an "engineer" title: roles that are
+// engineering in name only (facility/industrial/equipment engineers),
+// GRC/assurance work filed as "Security Engineer", and program managers.
+var hardNonDevTitleHints = []string{
+	"industrial engineer", "facility", "facilities", "mechanical", "electrical", "civil engineer",
+	"설비", "시설", "cx researcher", "security analyst",
+	"grc", "control assurance", "vendor security assurance", "governance",
+	"program manager", "project manager",
+}
 
 // nonDevTitleHints mark a title as a non-engineering role even when its
 // category is technical — policy/compliance/privacy work filed under a
@@ -32,7 +42,8 @@ var nonDevTitlePhrases = []string{"사업개발", "business develop", "ux resear
 var nonDevTitleHints = []string{
 	"compliance", "컴플라이언스", "정책", "개인정보", "privacy", "audit", "감사",
 	"analyst", "번역", "translat", "assistant", "어시스턴트",
-	"product manager", "program manager", "project manager", "product owner", "기획",
+	"product manager", "product management", "program manager", "project manager", "product owner", "기획",
+	"designer", "design lead", "디자이너",
 }
 
 // devTitleWords only count as whole words ("dba" inside another word is
@@ -46,6 +57,11 @@ var devTitleWords = map[string]bool{"dba": true, "ml": true, "fde": true}
 // rather than using it as the only filter where better data exists.
 func IsDevTitle(title string) bool {
 	lower := normalizeTitle(title)
+	for _, hint := range hardNonDevTitleHints {
+		if strings.Contains(lower, hint) {
+			return false
+		}
+	}
 	for _, kw := range devTitleKeywords {
 		if strings.Contains(lower, kw) {
 			return true
@@ -72,6 +88,11 @@ func IsDevTitle(title string) bool {
 // category, never a title that IsDevTitle already accepts.
 func IsNonDevTitle(title string) bool {
 	lower := normalizeTitle(title)
+	for _, hint := range hardNonDevTitleHints {
+		if strings.Contains(lower, hint) {
+			return true
+		}
+	}
 	for _, hint := range nonDevTitleHints {
 		if strings.Contains(lower, hint) {
 			return true
@@ -127,11 +148,11 @@ var devCategoryHints = []string{
 // devCategoryWords only count as whole words — "ai" as a substring would
 // otherwise match "Retail", "Maintenance", "Chain", ...; "tech" would
 // match "Technical Art" (NC's technical-artist job).
-var devCategoryWords = map[string]bool{"ai": true, "ml": true, "it": true, "dba": true, "tech": true}
+var devCategoryWords = map[string]bool{"ai": true, "ml": true, "it": true, "dba": true, "tech": true, "technology": true}
 
 // nonDevCategoryHints override a match: "사업개발" (business development)
 // contains "개발" but is a sales/BD function.
-var nonDevCategoryHints = []string{"사업개발", "business develop"}
+var nonDevCategoryHints = []string{"사업개발", "사업 개발", "business develop"}
 
 // IsDevCategory reports whether a site's own category label (department,
 // team, occupation, job group) looks technical. Deliberately broad — it's

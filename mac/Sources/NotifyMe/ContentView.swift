@@ -23,10 +23,24 @@ private enum JobsPresentation: String, CaseIterable, Identifiable {
     var icon: String { self == .board ? "rectangle.split.3x1" : "list.bullet" }
 }
 
+struct RecentWrite {
+    var value: Bool
+    var confirmed: Bool
+    var at: Date
+}
+
 struct ContentView: View {
     @StateObject private var credentials = CredentialsStore()
     @State private var postings: [JobPosting] = []
     @State private var errorMessage: String?
+    /// A failed save is shown as a dismissible banner over the board — not
+    /// via `errorMessage`, which replaces the whole board with an error page.
+    @State private var saveErrorMessage: String?
+    /// Checkbox values the user just set, keyed "<id>|<property>". A refresh
+    /// that was already in flight (or a store that hasn't caught up yet)
+    /// would otherwise overwrite them with the old value — hide "not taking".
+    @State private var recentWrites: [String: RecentWrite] = [:]
+    private let writeQueue = WriteQueue()
     @State private var isLoading = false
     @State private var showSettings = false
     @State private var showBookmarkedOnly = false
@@ -35,6 +49,7 @@ struct ContentView: View {
     @State private var employmentTypeFilter: Set<String> = []
     @State private var careerLevelFilter: Set<String> = []
     @State private var minimumDegreeFilter: Set<String> = []
+    @State private var visaSponsorshipFilter: Set<String> = []
     @State private var sortOrder: PostingSortOrder = .newest
     @State private var detailPostingID: String?
     @State private var descriptionCache: [String: String] = [:]
@@ -42,7 +57,10 @@ struct ContentView: View {
     @State private var workspace: Workspace = .jobs
     @State private var jobsPresentation: JobsPresentation = .board
 
-    private let refreshInterval: TimeInterval = 60
+    // Every refresh re-reads the whole database (Notion pages 100 rows per
+    // request, sequentially), so polling is kept slow; the refresh button/
+    // menu command still reloads on demand.
+    private let refreshInterval: TimeInterval = 300
 
     // MARK: - Derived state
 
@@ -57,8 +75,8 @@ struct ContentView: View {
     /// each one is just clutter. This is automatic and filter-driven,
     /// not persisted — a site reappears the moment a new posting for it
     /// exists, unlike the explicit, sticky mute below.
-    private var visibleSites: [String] {
-        availableSites.filter { !credentials.mutedSites.contains($0) && !postings(for: $0).isEmpty }
+    private func visibleSites(in grouped: [String: [JobPosting]]) -> [String] {
+        availableSites.filter { !credentials.mutedSites.contains($0) && grouped[$0] != nil }
     }
 
     private var availableEmploymentTypes: [String] {
@@ -72,6 +90,10 @@ struct ContentView: View {
     private var availableMinimumDegrees: [String] {
         Set(postings.map(\.minimumDegree).filter { !$0.isEmpty })
             .sorted { degreeSortRank($0) < degreeSortRank($1) }
+    }
+
+    private var availableVisaSponsorships: [String] {
+        Set(postings.map(\.visaSponsorship).filter { !$0.isEmpty }).sorted()
     }
 
     /// Every filter except the per-site mute, which is applied per-column
@@ -94,6 +116,7 @@ struct ContentView: View {
             .filter { employmentTypeFilter.isEmpty || employmentTypeFilter.contains($0.employmentType) }
             .filter { careerLevelFilter.isEmpty || careerLevelFilter.contains($0.careerLevel) }
             .filter { minimumDegreeFilter.isEmpty || minimumDegreeFilter.contains($0.minimumDegree) }
+			.filter { visaSponsorshipFilter.isEmpty || visaSponsorshipFilter.contains($0.visaSponsorship) }
             .filter {
                 searchText.isEmpty
                     || $0.title.localizedCaseInsensitiveContains(searchText)
@@ -102,8 +125,13 @@ struct ContentView: View {
             .sorted(by: sortOrder.comparator)
     }
 
-    private func postings(for site: String) -> [JobPosting] {
-        filteredPostings.filter { $0.site == site }
+    /// Filtered postings grouped by site, in one pass. The board used to
+    /// call filter+sort over every posting once per site (and again per
+    /// site to decide which columns are empty) on every view update —
+    /// with ~80 sites that was ~160 full sorts per keystroke or hover.
+    /// Grouping keeps each site's postings in `filteredPostings` order.
+    private var postingsBySite: [String: [JobPosting]] {
+        Dictionary(grouping: filteredPostings, by: \.site)
     }
 
     /// The all-company list honours the same filters and sorting as the
@@ -149,6 +177,25 @@ struct ContentView: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+
+            if let saveErrorMessage {
+                HStack(spacing: 8) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                    Text(saveErrorMessage).font(.caption).lineLimit(2)
+                    Spacer()
+                    Button("닫기") { self.saveErrorMessage = nil }
+                        .buttonStyle(.plain)
+                        .font(.caption.weight(.semibold))
+                }
+                .padding(10)
+                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
+                .padding(12)
+                .frame(maxHeight: .infinity, alignment: .bottom)
+                .task(id: saveErrorMessage) {
+                    try? await Task.sleep(for: .seconds(8))
+                    self.saveErrorMessage = nil
+                }
+            }
         }
         .frame(
             minWidth: 720,
@@ -255,6 +302,12 @@ struct ContentView: View {
                 selection: $minimumDegreeFilter,
                 displayName: degreeLabel
             )
+			multiSelectMenu(
+				title: "비자",
+				options: availableVisaSponsorships,
+				selection: $visaSponsorshipFilter,
+				displayName: visaSponsorshipLabel
+			)
 
             Menu {
                 ForEach(PostingSortOrder.allCases) { order in
@@ -383,23 +436,26 @@ struct ContentView: View {
     // MARK: - Board (one column per site)
 
     private var board: some View {
-        ScrollView(.horizontal) {
+        let grouped = postingsBySite
+        let sites = visibleSites(in: grouped)
+        return ScrollView(.horizontal) {
             HStack(alignment: .top, spacing: 12) {
                 if appliedFilter == .appliedOnly {
                     appliedCollection
-                } else if visibleSites.isEmpty {
+                } else if sites.isEmpty {
                     emptyBoardMessage
                 } else {
-                    ForEach(visibleSites, id: \.self) { site in
+                    ForEach(sites, id: \.self) { site in
                         SiteColumn(
                             site: site,
-                            postings: postings(for: site),
+                            postings: grouped[site] ?? [],
                             onHideSite: { credentials.toggleMuted(site: site) },
                             onSelect: { detailPostingID = $0.id },
                             onToggleBookmark: { toggle($0, .bookmarked) },
                             onToggleApplied: { toggle($0, .applied) },
                             onToggleHidden: { toggle($0, .hidden) }
                         )
+                        .equatable()
                     }
                 }
             }
@@ -428,6 +484,7 @@ struct ContentView: View {
                             onToggleApplied: { toggle(posting, .applied) },
                             onToggleHidden: { toggle(posting, .hidden) }
                         )
+                        .equatable()
                     }
                 }
             }
@@ -461,6 +518,7 @@ struct ContentView: View {
                 onToggleApplied: { toggle($0, .applied) },
                 onToggleHidden: { toggle($0, .hidden) }
             )
+            .equatable()
         }
     }
 
@@ -527,10 +585,19 @@ struct ContentView: View {
         defer { isLoading = false }
         do {
             let store = try credentials.makeStore()
-            postings = try await store.fetchPostings()
+            var fetched = try await store.fetchPostings()
+            applyRecentWrites(to: &fetched)
+            postings = fetched
             errorMessage = nil
         } catch {
-            errorMessage = error.localizedDescription
+            if postings.isEmpty {
+                errorMessage = error.localizedDescription
+            } else {
+                // A transient failure (Notion 502s now and then) shouldn't
+                // hide a feed that's already on screen — keep it, tell the
+                // user, and let the next poll try again.
+                saveErrorMessage = "새로고침 실패 — 이전 목록을 유지해요. \(error.localizedDescription)"
+            }
         }
     }
 
@@ -601,19 +668,52 @@ struct ContentView: View {
     private func setChecked(_ posting: JobPosting, _ property: WritableProperty, _ value: Bool) {
         guard let index = postings.firstIndex(where: { $0.id == posting.id }) else { return }
 
-        let previous = postings[index]
+        let previousValue = currentValue(of: property, in: postings[index])
         apply(value, of: property, to: &postings[index])
+        let key = "\(posting.id)|\(property.rawValue)"
+        recentWrites[key] = RecentWrite(value: value, confirmed: false, at: Date())
 
         Task {
             do {
                 let store = try credentials.makeStore()
-                try await store.setCheckbox(id: posting.id, property: property, value: value)
-            } catch {
-                if let current = postings.firstIndex(where: { $0.id == posting.id }) {
-                    postings[current] = previous
+                try await writeQueue.run {
+                    try await store.setCheckbox(id: posting.id, property: property, value: value)
                 }
-                errorMessage = "Couldn't save change: \(error.localizedDescription)"
+                recentWrites[key] = RecentWrite(value: value, confirmed: true, at: Date())
+            } catch {
+                recentWrites[key] = nil
+                // Revert just this property; the posting may have changed
+                // in other ways (another click, a refresh) since.
+                if let current = postings.firstIndex(where: { $0.id == posting.id }) {
+                    apply(previousValue, of: property, to: &postings[current])
+                }
+                saveErrorMessage = "저장 실패 — 변경을 되돌렸어요: \(error.localizedDescription)"
             }
+        }
+    }
+
+    /// Re-applies clicks that a refresh result might not reflect yet:
+    /// anything still being written, and confirmed writes for a minute
+    /// afterwards (the store can serve a stale read right after a write).
+    private func applyRecentWrites(to fetched: inout [JobPosting]) {
+        let now = Date()
+        recentWrites = recentWrites.filter { !$0.value.confirmed || now.timeIntervalSince($0.value.at) < 60 }
+        guard !recentWrites.isEmpty else { return }
+        for index in fetched.indices {
+            for property in [WritableProperty.seen, .bookmarked, .hidden, .applied] {
+                if let write = recentWrites["\(fetched[index].id)|\(property.rawValue)"] {
+                    apply(write.value, of: property, to: &fetched[index])
+                }
+            }
+        }
+    }
+
+    private func currentValue(of property: WritableProperty, in posting: JobPosting) -> Bool {
+        switch property {
+        case .seen: return posting.seen
+        case .bookmarked: return posting.bookmarked
+        case .hidden: return posting.hidden
+        case .applied: return posting.applied
         }
     }
 
@@ -629,7 +729,15 @@ struct ContentView: View {
 
 // MARK: - Board column
 
-private struct SiteColumn: View {
+/// Equatable on data only (closures can't be compared): with ~80 columns,
+/// any state change re-ran every column's body — and every visible card
+/// in it — because the closure properties defeat SwiftUI's own diffing.
+/// Hiding one card or site therefore rebuilt the whole board.
+private struct SiteColumn: View, Equatable {
+    static func == (lhs: SiteColumn, rhs: SiteColumn) -> Bool {
+        lhs.site == rhs.site && lhs.showsSite == rhs.showsSite && lhs.postings == rhs.postings
+    }
+
     let site: String
     let postings: [JobPosting]
     /// Shows each card's source site — only useful in a column that mixes
@@ -678,6 +786,7 @@ private struct SiteColumn: View {
                             onToggleApplied: { onToggleApplied(posting) },
                             onToggleHidden: { onToggleHidden(posting) }
                         )
+                        .equatable()
                     }
                 }
                 .padding(.bottom, 8)
@@ -694,7 +803,11 @@ private let appliedGreen = Color(red: 0.18, green: 0.72, blue: 0.42)
 
 // MARK: - Card
 
-struct JobCardView: View {
+struct JobCardView: View, Equatable {
+    static func == (lhs: JobCardView, rhs: JobCardView) -> Bool {
+        lhs.posting == rhs.posting && lhs.showsSite == rhs.showsSite
+    }
+
     let posting: JobPosting
     var showsSite = false
     let onSelect: () -> Void
@@ -751,12 +864,13 @@ struct JobCardView: View {
                     }
                 }
 
-                if !posting.employmentType.isEmpty || !posting.careerLevel.isEmpty || posting.minYearsExperience != nil || !posting.minimumDegree.isEmpty {
+                if !posting.employmentType.isEmpty || !posting.careerLevel.isEmpty || posting.minYearsExperience != nil || !posting.minimumDegree.isEmpty || !posting.visaSponsorship.isEmpty {
                     HStack(spacing: 4) {
                         if !posting.employmentType.isEmpty { badge(posting.employmentType) }
                         if !posting.careerLevel.isEmpty { badge(posting.careerLevel) }
                         if let years = posting.minYearsExperience { badge("경력 \(years)년+") }
                         if !posting.minimumDegree.isEmpty { badge(degreeLabel(posting.minimumDegree)) }
+						if !posting.visaSponsorship.isEmpty { badge("비자 " + visaSponsorshipLabel(posting.visaSponsorship)) }
                     }
                 }
 
@@ -838,6 +952,15 @@ private func degreeSortRank(_ degree: String) -> Int {
     }
 }
 
+private func visaSponsorshipLabel(_ value: String) -> String {
+    switch value {
+    case "Supported": return "지원"
+    case "Not supported": return "미지원"
+    case "Not stated": return "미확인"
+    default: return value
+    }
+}
+
 // MARK: - Detail view
 
 private struct DetailView: View {
@@ -878,6 +1001,7 @@ private struct DetailView: View {
                 if !posting.careerLevel.isEmpty { badge(posting.careerLevel) }
                 if let years = posting.minYearsExperience { badge("경력 \(years)년+") }
                 if !posting.minimumDegree.isEmpty { badge(degreeLabel(posting.minimumDegree)) }
+				if !posting.visaSponsorship.isEmpty { badge("비자 " + visaSponsorshipLabel(posting.visaSponsorship)) }
                 if !posting.location.isEmpty {
                     Label(posting.location, systemImage: "mappin.and.ellipse")
                         .font(.caption)

@@ -10,14 +10,14 @@ struct GoogleSheetsStore: JobStore {
     private let sheetName: String
 
     private static let scope = "https://www.googleapis.com/auth/spreadsheets"
-    private static let columnLetters = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R"]
+    private static let columnLetters = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S"]
 
     // Applied is last (column R), matching internal/sheets on the Go side,
     // which appended it rather than shifting existing columns.
     private enum Col: Int {
         case title, company, url, site, location, firstSeen, seen, bookmarked, hidden, expired,
              employmentType, careerLevel, applicationStart, applicationDeadline, description,
-             minYearsExperience, minimumDegree, applied
+             minYearsExperience, minimumDegree, applied, visaSponsorship
     }
 
     /// `serviceAccountJSON` is the whole contents of a downloaded Google
@@ -62,6 +62,7 @@ struct GoogleSheetsStore: JobStore {
                 applicationDeadline: cellDate(row, .applicationDeadline),
                 minYearsExperience: cellInt(row, .minYearsExperience),
                 minimumDegree: cell(row, .minimumDegree) ?? "",
+				visaSponsorship: cell(row, .visaSponsorship) ?? "Not stated",
                 description: cell(row, .description)
             )
         }
@@ -99,7 +100,7 @@ struct GoogleSheetsStore: JobStore {
         var request = try await authorizedRequest(url: url, method: "PUT")
         request.httpBody = try JSONSerialization.data(withJSONObject: ["values": [[value]]])
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await dataWithRetry(for: request)
         try Self.checkOK(response, data)
     }
 

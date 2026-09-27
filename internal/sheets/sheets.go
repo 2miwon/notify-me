@@ -44,6 +44,9 @@ const (
 	// Applied is app-owned like Seen/Bookmarked/Hidden, but appended last
 	// rather than grouped with them so existing sheets keep their layout.
 	colApplied
+	// Visa Sponsorship was added after Applied so existing sheets retain all
+	// of their pre-existing column positions.
+	colVisaSponsorship
 )
 
 const defaultSheetName = "Postings"
@@ -53,12 +56,12 @@ var header = []interface{}{
 	"Seen", "Bookmarked", "Hidden", "Expired",
 	"Employment Type", "Career Level", "Application Start", "Application Deadline",
 	"Description", "Min Years Experience",
-	"Minimum Degree", "Applied",
+	"Minimum Degree", "Applied", "Visa Sponsorship",
 }
 
 // lastColumn is the header's last column letter, used to build A1:<lastColumn>
 // range references without hardcoding it in three places.
-const lastColumn = "R"
+const lastColumn = "S"
 
 type Client struct {
 	svc           *sheets.Service
@@ -151,6 +154,7 @@ func (c *Client) ExistingPostings(ctx context.Context) (map[string]store.Existin
 			EmploymentType:     cellString(row, colEmploymentType),
 			CareerLevel:        cellString(row, colCareerLevel),
 			MinYearsExperience: cellInt(row, colMinYearsExperience),
+			VisaSponsorship:    cellString(row, colVisaSponsorship),
 		}
 	}
 	return result, nil
@@ -194,6 +198,10 @@ func (c *Client) UpdateEmploymentType(ctx context.Context, url, employmentType s
 
 func (c *Client) UpdateMinYearsExperience(ctx context.Context, url string, years int) error {
 	return c.updateCellByURL(ctx, url, "P", years, "minimum experience")
+}
+
+func (c *Client) UpdateVisaSponsorship(ctx context.Context, url, sponsorship string) error {
+	return c.updateCellByURL(ctx, url, "S", sponsorship, "visa sponsorship")
 }
 
 func (c *Client) MarkExpired(ctx context.Context, url string) error {
@@ -243,6 +251,7 @@ func (c *Client) CreatePosting(ctx context.Context, p job.Posting) error {
 		row[colMinYearsExperience] = *p.MinYearsExperience
 	}
 	row[colMinimumDegree] = p.MinimumDegree
+	row[colVisaSponsorship] = p.VisaSponsorship
 
 	_, err := c.svc.Spreadsheets.Values.Append(c.spreadsheetID, c.rangeRef("A:"+lastColumn), &sheets.ValueRange{
 		Values: [][]interface{}{row},

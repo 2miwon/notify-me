@@ -36,6 +36,9 @@ struct JobPosting: Identifiable, Hashable {
     /// Best-effort normalized minimum academic degree requirement extracted
     /// from the posting's title and description on the crawler side.
     let minimumDegree: String
+    /// Explicit visa-support classification from the crawler. "Not stated"
+    /// means the posting did not make a claim either way.
+    let visaSponsorship: String
 
     /// Full posting body text. Present immediately for the Sheets backend
     /// (it's just another column, free with the row); nil for Notion

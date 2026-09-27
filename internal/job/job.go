@@ -50,4 +50,7 @@ type Posting struct {
 	// extracted from title and description. Empty means the source text did
 	// not state a recognizable requirement.
 	MinimumDegree string
+	// VisaSponsorship is one of Supported, Not supported, or Not stated,
+	// based only on explicit wording in the posting body.
+	VisaSponsorship string
 }

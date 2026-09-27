@@ -52,6 +52,13 @@ exclude_keywords:
   - "IC Design"
   - "IC Test"
 
+# Always drop postings from these companies (case-insensitive substring of
+# the company name shown on the card). To stop crawling a whole site
+# instead, delete/comment its block under `sites:` below. Only stops NEW
+# postings — ones already stored stay until they expire or you delete them.
+# Example: exclude_companies: ["넷마블네오", "Tinder"]
+exclude_companies: []
+
 # Keep only postings whose employment type is in this list. Normalized to
 # one vocabulary across sites — "Full-time", "Contract", "Internship",
 # "Temporary" — so this one list applies everywhere; no need to also list
@@ -303,20 +310,24 @@ sites:
   # lever_dev_only instead of a team allow-list.
   hyperconnect:
     lever_company_slug: "matchgroup"
-    lever_company: "하이퍼커넥트"
+    # Empty company = each posting's own department (Hyperconnect / Match
+    # Group / Tinder), since one Lever account holds all of Match Group.
+    lever_company: ""
     lever_countries:
       - "KR"
+      - "JP"
+      - "SG"
     lever_dev_only: true
 
   # Netmarble group (넷마블/넷마블네오/...) — job group "기술/AI" plus
   # dev-looking titles elsewhere. See internal/site/netmarble.
-  netmarble:
-    netmarble_dev_only: true
+  # netmarble:
+  #   netmarble_dev_only: true
 
   # NCSOFT — job types Game Programming / AI R&D / System Administration
   # plus dev-looking titles. See internal/site/ncsoft.
-  ncsoft:
-    ncsoft_dev_only: true
+  # ncsoft:
+  #   ncsoft_dev_only: true
 
   # 오늘의집 (Bucketplace) — team Engineering/정보보안 plus dev-looking
   # titles. See internal/site/bucketplace.
@@ -370,6 +381,181 @@ sites:
   shopify:
     shopify_locations: *remote_korea_locations
     shopify_dev_only: true
+
+  # HYBE — GreetingHR on its own domain (careers.hybecorp.com).
+  # hybe:
+  #   greetinghr_subdomain: "hybe"
+  #   greetinghr_base_url: "https://careers.hybecorp.com"
+  #   greetinghr_list_path: "/ko/home"
+  #   greetinghr_company: "하이브"
+  #   greetinghr_dev_only: true
+
+  # Bithumb (빗썸) — GreetingHR on its own domain. Occupations "Tech" /
+  # "Security" hold the dev roles, next to Product/Marketing/Corporate.
+  bithumb:
+    greetinghr_subdomain: "bithumb"
+    greetinghr_base_url: "https://career.bithumbcorp.com"
+    greetinghr_list_path: "/ko/apply"
+    greetinghr_company: "빗썸"
+    greetinghr_dev_only: true
+
+  # Kakao Games (카카오게임즈) — GreetingHR on its own domain.
+  # kakaogames:
+  #   greetinghr_subdomain: "kakaogames"
+  #   greetinghr_base_url: "https://recruit.kakaogames.com"
+  #   greetinghr_list_path: "/ko/homekr"
+  #   greetinghr_company: "카카오게임즈"
+  #   greetinghr_dev_only: true
+
+  # Zigbang (직방) — career.zigbang.com redirects to its GreetingHR site.
+  zigbang:
+    greetinghr_subdomain: "zigbang"
+    greetinghr_list_path: "/ko/home"
+    greetinghr_company: "직방"
+    greetinghr_dev_only: true
+
+  # MyRealTrip (마이리얼트립) — GreetingHR (its about.myrealtrip.com "채용
+  # 공고" button links here). Mostly 사업개발/영업, so dev roles are rare.
+  myrealtrip:
+    greetinghr_subdomain: "myrealtrip"
+    greetinghr_list_path: "/ko/home"
+    greetinghr_company: "마이리얼트립"
+    greetinghr_dev_only: true
+
+  # Banksalad (뱅크샐러드) — its GreetingHR home is off; the jobs page reads
+  # a public JSON proxy instead. See internal/site/banksalad.
+  banksalad:
+    banksalad_dev_only: true
+
+  # RIDI (리디) — RoundHR (ridi.recruit.roundhr.com). See internal/site/roundhr.
+  ridi:
+    roundhr_code: "ridi"
+    roundhr_company: "리디"
+    roundhr_dev_only: true
+
+  # Wrtn (뤼튼) — GreetingHR on its own domain (career.wrtn.io).
+  # wrtn:
+  #   greetinghr_subdomain: "wrtn"
+  #   greetinghr_base_url: "https://career.wrtn.io"
+  #   greetinghr_list_path: "/ko/career"
+  #   greetinghr_company: "뤼튼"
+  #   greetinghr_dev_only: true
+
+  # ---- Global companies: Korea/Japan/Singapore offices or APAC-eligible
+  # remote. Same substring allow-list for all of them (anchored below);
+  # Japan/Singapore are included on purpose — this list is for companies
+  # that hire foreign nationals into an Asian office, not only Seoul.
+  # Many of these have no APAC-eligible opening at a given moment.
+  anthropic:
+    greenhouse_company_slug: "anthropic"
+    greenhouse_company: "Anthropic"
+    greenhouse_locations: &asia_locations
+      - "Korea"
+      - "Seoul"
+      - "Japan"
+      - "Tokyo"
+      - "Osaka"
+      - "Singapore"
+      - "APAC"
+      - "APJ"
+      - "Asia"
+      - "Anywhere"
+      - "Worldwide"
+      - "Global"
+    greenhouse_dev_only: true
+
+  datadog:
+    greenhouse_company_slug: "datadog"
+    greenhouse_company: "Datadog"
+    greenhouse_locations: *asia_locations
+    greenhouse_dev_only: true
+
+  databricks:
+    greenhouse_company_slug: "databricks"
+    greenhouse_company: "Databricks"
+    greenhouse_locations: *asia_locations
+    greenhouse_dev_only: true
+
+  airbnb:
+    greenhouse_company_slug: "airbnb"
+    greenhouse_company: "Airbnb"
+    greenhouse_locations: *asia_locations
+    greenhouse_dev_only: true
+
+  stripe:
+    greenhouse_company_slug: "stripe"
+    greenhouse_company: "Stripe"
+    greenhouse_locations: *asia_locations
+    greenhouse_dev_only: true
+
+  coinbase:
+    greenhouse_company_slug: "coinbase"
+    greenhouse_company: "Coinbase"
+    greenhouse_locations: *asia_locations
+    greenhouse_dev_only: true
+
+  twilio:
+    greenhouse_company_slug: "twilio"
+    greenhouse_company: "Twilio"
+    greenhouse_locations: *asia_locations
+    greenhouse_dev_only: true
+
+  grafanalabs:
+    greenhouse_company_slug: "grafanalabs"
+    greenhouse_company: "Grafana Labs"
+    greenhouse_locations: *asia_locations
+    greenhouse_dev_only: true
+
+  reddit:
+    greenhouse_company_slug: "reddit"
+    greenhouse_company: "Reddit"
+    greenhouse_locations: *asia_locations
+    greenhouse_dev_only: true
+
+  dropbox:
+    greenhouse_company_slug: "dropbox"
+    greenhouse_company: "Dropbox"
+    greenhouse_locations: *asia_locations
+    greenhouse_dev_only: true
+
+  supabase:
+    ashby_company_slug: "supabase"
+    ashby_company: "Supabase"
+    ashby_locations: *asia_locations
+    ashby_dev_only: true
+
+  cohere:
+    ashby_company_slug: "cohere"
+    ashby_company: "Cohere"
+    ashby_locations: *asia_locations
+    ashby_dev_only: true
+
+  notion:
+    ashby_company_slug: "notion"
+    ashby_company: "Notion"
+    ashby_locations: *asia_locations
+    ashby_dev_only: true
+
+  cursor:
+    ashby_company_slug: "cursor"
+    ashby_company: "Cursor"
+    ashby_locations: *asia_locations
+    ashby_dev_only: true
+
+  posthog:
+    ashby_company_slug: "posthog"
+    ashby_company: "PostHog"
+    ashby_locations: *asia_locations
+    ashby_dev_only: true
+
+  palantir:
+    lever_company_slug: "palantir"
+    lever_company: "Palantir"
+    lever_countries:
+      - "KR"
+      - "JP"
+      - "SG"
+    lever_dev_only: true
 
   1password:
     ashby_company_slug: "1password"

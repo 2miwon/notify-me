@@ -96,6 +96,7 @@ func (c *Client) ExistingPostings(ctx context.Context) (map[string]store.Existin
 				EmploymentType:     selectValue(page.Properties, PropEmploymentType),
 				CareerLevel:        selectValue(page.Properties, PropCareerLevel),
 				MinYearsExperience: numberValue(page.Properties, PropMinYearsExperience),
+				VisaSponsorship:    selectValue(page.Properties, PropVisaSponsorship),
 			}
 		}
 
@@ -176,6 +177,9 @@ func (c *Client) CreatePosting(ctx context.Context, p job.Posting) error {
 	if p.MinimumDegree != "" {
 		props[PropMinimumDegree] = notionapi.SelectProperty{Select: notionapi.Option{Name: p.MinimumDegree}}
 	}
+	if p.VisaSponsorship != "" {
+		props[PropVisaSponsorship] = notionapi.SelectProperty{Select: notionapi.Option{Name: p.VisaSponsorship}}
+	}
 
 	_, err := c.api.Page.Create(ctx, &notionapi.PageCreateRequest{
 		Parent: notionapi.Parent{
@@ -220,6 +224,10 @@ func (c *Client) UpdateMinYearsExperience(ctx context.Context, id string, years 
 		return fmt.Errorf("update minimum experience for %s: %w", id, err)
 	}
 	return nil
+}
+
+func (c *Client) UpdateVisaSponsorship(ctx context.Context, id, sponsorship string) error {
+	return c.updateSelectProperty(ctx, id, PropVisaSponsorship, sponsorship)
 }
 
 func (c *Client) EnsureDescription(ctx context.Context, id, description string) error {

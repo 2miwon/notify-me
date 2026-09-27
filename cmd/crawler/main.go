@@ -39,6 +39,7 @@ import (
 	"github.com/2miwon/notify-me/internal/site/apple"
 	"github.com/2miwon/notify-me/internal/site/ashby"
 	"github.com/2miwon/notify-me/internal/site/automattic"
+	"github.com/2miwon/notify-me/internal/site/banksalad"
 	"github.com/2miwon/notify-me/internal/site/bucketplace"
 	"github.com/2miwon/notify-me/internal/site/coupang"
 	"github.com/2miwon/notify-me/internal/site/daangn"
@@ -61,6 +62,7 @@ import (
 	"github.com/2miwon/notify-me/internal/site/ninehire"
 	"github.com/2miwon/notify-me/internal/site/nvidia"
 	"github.com/2miwon/notify-me/internal/site/openai"
+	"github.com/2miwon/notify-me/internal/site/roundhr"
 	"github.com/2miwon/notify-me/internal/site/sap"
 	"github.com/2miwon/notify-me/internal/site/shopify"
 	"github.com/2miwon/notify-me/internal/site/wanted"
@@ -178,6 +180,7 @@ func run() error {
 			}
 			liveURLs[p.URL] = true
 			p.MinimumDegree = job.ExtractMinimumDegree(p.Title + "\n" + p.Description)
+			p.VisaSponsorship = job.ExtractVisaSponsorship(p.Title + "\n" + p.Description)
 
 			if rec, ok := existing[p.URL]; ok {
 				// Woo's original adapter had no detail hydration, so existing
@@ -239,9 +242,28 @@ func run() error {
 						existing[p.URL] = rec
 					}
 				}
+				// "Not stated" is the honest UI fallback, not information worth
+				// writing once per posting. Persist only an explicit support or
+				// refusal; clear a formerly explicit value when its source wording
+				// disappears so stale sponsorship promises do not linger.
+				shouldUpdateVisa := p.VisaSponsorship != job.VisaSponsorshipNotStated && p.VisaSponsorship != rec.VisaSponsorship
+				shouldClearVisa := p.VisaSponsorship == job.VisaSponsorshipNotStated && rec.VisaSponsorship != "" && rec.VisaSponsorship != job.VisaSponsorshipNotStated
+				if shouldUpdateVisa || shouldClearVisa {
+					value := p.VisaSponsorship
+					if shouldClearVisa {
+						value = job.VisaSponsorshipNotStated
+					}
+					if err := write(func(ctx context.Context) error { return st.UpdateVisaSponsorship(ctx, rec.ID, value) }); err != nil {
+						log.Printf("ERROR: %s: update visa sponsorship failed for %s: %v", a.Name(), p.URL, err)
+						siteErrs = append(siteErrs, err)
+					} else {
+						rec.VisaSponsorship = value
+						existing[p.URL] = rec
+					}
+				}
 				continue
 			}
-			if !cfg.MatchesKeywords(p.Title) || cfg.ExcludedByKeyword(p.Title) {
+			if !cfg.MatchesKeywords(p.Title) || cfg.ExcludedByKeyword(p.Title) || cfg.ExcludedCompany(p.Company) {
 				continue
 			}
 			if !cfg.MatchesEmploymentType(p.EmploymentType) || !cfg.MatchesCareerLevel(p.CareerLevel) {
@@ -495,6 +517,59 @@ func buildAdapters(cfg *config.Config) []site.Adapter {
 	if sc, ok := cfg.Sites["hyperconnect"]; ok {
 		adapters = append(adapters, lever.New(sc.LeverCompanySlug, sc.LeverCompany, sc.LeverCountries, sc.LeverTeams, sc.LeverDevOnly))
 	}
+	if sc, ok := cfg.Sites["anthropic"]; ok {
+		adapters = append(adapters, greenhouse.New(sc.GreenhouseCompanySlug, sc.GreenhouseCompany, sc.GreenhouseLocations, sc.GreenhouseDevOnly))
+	}
+	if sc, ok := cfg.Sites["datadog"]; ok {
+		adapters = append(adapters, greenhouse.New(sc.GreenhouseCompanySlug, sc.GreenhouseCompany, sc.GreenhouseLocations, sc.GreenhouseDevOnly))
+	}
+	if sc, ok := cfg.Sites["databricks"]; ok {
+		adapters = append(adapters, greenhouse.New(sc.GreenhouseCompanySlug, sc.GreenhouseCompany, sc.GreenhouseLocations, sc.GreenhouseDevOnly))
+	}
+	if sc, ok := cfg.Sites["airbnb"]; ok {
+		adapters = append(adapters, greenhouse.New(sc.GreenhouseCompanySlug, sc.GreenhouseCompany, sc.GreenhouseLocations, sc.GreenhouseDevOnly))
+	}
+	if sc, ok := cfg.Sites["stripe"]; ok {
+		adapters = append(adapters, greenhouse.New(sc.GreenhouseCompanySlug, sc.GreenhouseCompany, sc.GreenhouseLocations, sc.GreenhouseDevOnly))
+	}
+	if sc, ok := cfg.Sites["coinbase"]; ok {
+		adapters = append(adapters, greenhouse.New(sc.GreenhouseCompanySlug, sc.GreenhouseCompany, sc.GreenhouseLocations, sc.GreenhouseDevOnly))
+	}
+	if sc, ok := cfg.Sites["twilio"]; ok {
+		adapters = append(adapters, greenhouse.New(sc.GreenhouseCompanySlug, sc.GreenhouseCompany, sc.GreenhouseLocations, sc.GreenhouseDevOnly))
+	}
+	if sc, ok := cfg.Sites["grafanalabs"]; ok {
+		adapters = append(adapters, greenhouse.New(sc.GreenhouseCompanySlug, sc.GreenhouseCompany, sc.GreenhouseLocations, sc.GreenhouseDevOnly))
+	}
+	if sc, ok := cfg.Sites["reddit"]; ok {
+		adapters = append(adapters, greenhouse.New(sc.GreenhouseCompanySlug, sc.GreenhouseCompany, sc.GreenhouseLocations, sc.GreenhouseDevOnly))
+	}
+	if sc, ok := cfg.Sites["dropbox"]; ok {
+		adapters = append(adapters, greenhouse.New(sc.GreenhouseCompanySlug, sc.GreenhouseCompany, sc.GreenhouseLocations, sc.GreenhouseDevOnly))
+	}
+	if sc, ok := cfg.Sites["supabase"]; ok {
+		adapters = append(adapters, ashby.New(sc.AshbyCompanySlug, sc.AshbyCompany, sc.AshbyLocations, sc.AshbyDevOnly))
+	}
+	if sc, ok := cfg.Sites["cohere"]; ok {
+		adapters = append(adapters, ashby.New(sc.AshbyCompanySlug, sc.AshbyCompany, sc.AshbyLocations, sc.AshbyDevOnly))
+	}
+	if sc, ok := cfg.Sites["notion"]; ok {
+		adapters = append(adapters, ashby.New(sc.AshbyCompanySlug, sc.AshbyCompany, sc.AshbyLocations, sc.AshbyDevOnly))
+	}
+	if sc, ok := cfg.Sites["cursor"]; ok {
+		adapters = append(adapters, ashby.New(sc.AshbyCompanySlug, sc.AshbyCompany, sc.AshbyLocations, sc.AshbyDevOnly))
+	}
+	if sc, ok := cfg.Sites["posthog"]; ok {
+		adapters = append(adapters, ashby.New(sc.AshbyCompanySlug, sc.AshbyCompany, sc.AshbyLocations, sc.AshbyDevOnly))
+	}
+	if sc, ok := cfg.Sites["palantir"]; ok {
+		adapters = append(adapters, lever.New(sc.LeverCompanySlug, sc.LeverCompany, sc.LeverCountries, sc.LeverTeams, sc.LeverDevOnly))
+	}
+	for _, name := range []string{"hybe", "wrtn", "bithumb", "kakaogames", "zigbang", "myrealtrip"} {
+		if sc, ok := cfg.Sites[name]; ok {
+			adapters = append(adapters, greetinghr.New(sc.GreetinghrSubdomain, sc.GreetinghrBaseURL, sc.GreetinghrListPath, sc.GreetinghrCompany, sc.GreetinghrDevOnly))
+		}
+	}
 	if sc, ok := cfg.Sites["1password"]; ok {
 		adapters = append(adapters, ashby.New(sc.AshbyCompanySlug, sc.AshbyCompany, sc.AshbyLocations, sc.AshbyDevOnly))
 	}
@@ -506,6 +581,20 @@ func buildAdapters(cfg *config.Config) []site.Adapter {
 	}
 	if sc, ok := cfg.Sites["ncsoft"]; ok {
 		adapters = append(adapters, ncsoft.New(sc.NcsoftDevOnly))
+	}
+	if sc, ok := cfg.Sites["banksalad"]; ok {
+		adapters = append(adapters, banksalad.New(sc.BanksaladDevOnly))
+	}
+	var roundhrNames []string
+	for name, sc := range cfg.Sites {
+		if sc.RoundhrCode != "" {
+			roundhrNames = append(roundhrNames, name)
+		}
+	}
+	sort.Strings(roundhrNames)
+	for _, name := range roundhrNames {
+		sc := cfg.Sites[name]
+		adapters = append(adapters, roundhr.New(sc.RoundhrCode, sc.RoundhrCompany, sc.RoundhrDevOnly))
 	}
 	if sc, ok := cfg.Sites["shopify"]; ok {
 		adapters = append(adapters, shopify.New(sc.ShopifyLocations, sc.ShopifyDevOnly))
@@ -609,8 +698,9 @@ func probe(adapters []site.Adapter, name string) error {
 		postings, err := a.Fetch()
 		for _, p := range postings {
 			desc := len([]rune(p.Description))
-			fmt.Printf("- %s | %s | %s | emp=%q career=%q deadline=%v desc=%d\n  %s\n",
-				p.Title, p.Company, p.Location, p.EmploymentType, p.CareerLevel, p.ApplicationDeadline != nil, desc, p.URL)
+			visa := job.ExtractVisaSponsorship(p.Title + "\n" + p.Description)
+			fmt.Printf("- %s | %s | %s | emp=%q career=%q visa=%q deadline=%v desc=%d\n  %s\n",
+				p.Title, p.Company, p.Location, p.EmploymentType, p.CareerLevel, visa, p.ApplicationDeadline != nil, desc, p.URL)
 		}
 		fmt.Printf("%s: %d postings in %s, err=%v\n", name, len(postings), time.Since(start).Round(time.Millisecond), err)
 		return nil

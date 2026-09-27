@@ -91,7 +91,15 @@ func (a *Adapter) fetchDescription(detailURL string) (string, error) {
 	})
 	appendSection := func(sel *goquery.Selection) {
 		heading := clean(sel.Find("h3").First().Text())
-		body := clean(sel.Clone().Find("h3").Remove().End().Text())
+		// Paragraph breaks in this section are plain <br><br> inside one
+		// container, not separate <p> elements — a bare .Text() call
+		// drops the tags with no separator, gluing sentences together
+		// ("...in Korea.In this role, you will..."). Turn each <br> into
+		// a newline first so paragraph breaks survive into the text.
+		clone := sel.Clone()
+		clone.Find("h3").Remove()
+		clone.Find("br").ReplaceWithHtml("\n")
+		body := paragraphs(clone.Text())
 		if heading != "" || body != "" {
 			parts = append(parts, strings.TrimSpace(heading+"\n"+body))
 		}
@@ -119,6 +127,19 @@ func (a *Adapter) get(target string) (*goquery.Document, error) {
 }
 
 func clean(s string) string { return strings.Join(strings.Fields(s), " ") }
+
+// paragraphs collapses whitespace within each line (as clean does) while
+// keeping the line breaks between them, so paragraphs stay separated
+// instead of being joined into one run-on block.
+func paragraphs(s string) string {
+	var lines []string
+	for _, raw := range strings.Split(s, "\n") {
+		if line := clean(raw); line != "" {
+			lines = append(lines, line)
+		}
+	}
+	return strings.Join(lines, "\n")
+}
 
 func matchedCount(doc *goquery.Document) int {
 	text := clean(doc.Find(".SWhIm").First().Text())

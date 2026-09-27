@@ -29,6 +29,7 @@ package notion
 //	                         the posting's own text, see internal/job.ExtractMinYearsExperience)
 //	Minimum Degree        -- Select (optional; normalized minimum academic degree
 //	                         extracted from the posting's own text)
+//	Visa Sponsorship      -- Select (explicit support/refusal/not stated)
 //
 // A posting's full description (when the adapter fetches one) goes into
 // the page body as paragraph blocks, not a property — see CreatePosting.
@@ -50,4 +51,5 @@ const (
 	PropApplicationDeadline = "Application Deadline"
 	PropMinYearsExperience  = "Min Years Experience"
 	PropMinimumDegree       = "Minimum Degree"
+	PropVisaSponsorship     = "Visa Sponsorship"
 )

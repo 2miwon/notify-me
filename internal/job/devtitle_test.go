@@ -49,6 +49,21 @@ func TestLooksDev(t *testing.T) {
 		{"[프로젝트 SC] Technical Artist 모집", "Technical Art", false},
 		{"[단기계약직] AI 교육사업·국가 R&D 과제 운영 담당자 모집", "", false},
 		{"Backend Developer", "Tech", true},
+		{"Global Stay실 Americas & EMEA팀 사업 개발 매니저", "사업개발/기획", false},
+		{"Staff Security Engineer (AI GRC)", "", false},
+		{"Staff Security Engineer (Vendor Security Assurance)", "", false},
+		{"[쿠팡풀필먼트서비스] Principal, Industrial Engineer (Inbound Process Innovation)", "", false},
+		{"설비 신뢰성 엔지니어 리드", "", false},
+		{"Staff, Technical Program Manager(CoupangEats Engineering)", "Eats Tech", false},
+		{"Tier1 Security Analyst (계약직)", "", false},
+		{"Staff CX Researcher (Customer Experience)", "", false},
+		{"Staff Security Engineer (Penetration Tester)", "", true},
+		{"Account Executive, Product Sales (Data Pipeline)", "", false},
+		{"Senior Product Manager (Rocket Growth)", "Rocket Growth Tech", false},
+		{"[Coupang Pay] Staff Product Designer (FinTech UX)", "Coupang Pay Tech", false},
+		{"Director of Product Management, Customer Experience", "Customer Experience Tech", false},
+		{"Senior~Staff, Data Analyst (Catalog)", "Catalog Tech", false},
+		{"Senior Director, Robotics & Computer Vision", "Global Operations Technology (Global Ops Tech)", true},
 	}
 	for _, c := range cases {
 		if got := LooksDev(c.title, c.category); got != c.want {
