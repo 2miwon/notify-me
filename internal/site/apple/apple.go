@@ -160,7 +160,7 @@ func (a *Adapter) fetchListPage(page int) ([]listing, error) {
 		l := listing{
 			externalID: externalIDFromHref(href),
 			title:      title,
-			url:        baseURL + href,
+			url:        canonicalURL(baseURL + href),
 			team:       team,
 			location:   location,
 		}
@@ -173,10 +173,24 @@ func (a *Adapter) fetchListPage(page int) ([]listing, error) {
 	return listings, nil
 }
 
+// CanonicalURL implements site.URLCanonicalizer.
+func (a *Adapter) CanonicalURL(url string) string { return canonicalURL(url) }
+
+// canonicalURL drops the query string from a detail link. Apple appends
+// "?team=<code>" reflecting whichever filter surfaced the posting, and that
+// code differs between requests (the same job shows up as ?team=SFTWR and
+// ?team=SLDEV), so keeping it would make one posting look new every run.
+func canonicalURL(url string) string {
+	if i := strings.IndexAny(url, "?#"); i >= 0 {
+		return url[:i]
+	}
+	return url
+}
+
 // externalIDFromHref pulls the numeric-ish job ID out of a detail path
 // like "/en-us/details/200682849-3631/business-affairs-...".
 func externalIDFromHref(href string) string {
-	parts := strings.Split(strings.Trim(href, "/"), "/")
+	parts := strings.Split(strings.Trim(canonicalURL(href), "/"), "/")
 	for i, part := range parts {
 		if part == "details" && i+1 < len(parts) {
 			return parts[i+1]

@@ -86,12 +86,17 @@ func (c *Client) ExistingPostings(ctx context.Context) (map[string]store.Existin
 			if appliedProp, ok := page.Properties[PropApplied].(*notionapi.CheckboxProperty); ok {
 				applied = appliedProp.Checkbox
 			}
+			hidden := false
+			if hiddenProp, ok := page.Properties[PropHidden].(*notionapi.CheckboxProperty); ok {
+				hidden = hiddenProp.Checkbox
+			}
 
 			result[urlProp.URL] = store.ExistingPosting{
 				ID:                 string(page.ID),
 				Site:               site,
 				Expired:            expired,
 				Applied:            applied,
+				Hidden:             hidden,
 				MinimumDegree:      selectValue(page.Properties, PropMinimumDegree),
 				EmploymentType:     selectValue(page.Properties, PropEmploymentType),
 				CareerLevel:        selectValue(page.Properties, PropCareerLevel),

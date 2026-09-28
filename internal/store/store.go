@@ -24,7 +24,10 @@ type ExistingPosting struct {
 	// Applied is set by the client app, never the crawler — read here only
 	// so an applied-to posting is kept (marked Expired) rather than deleted
 	// when it drops out of its site's listing.
-	Applied            bool
+	Applied bool
+	// Hidden is likewise app-owned and read only to decide which record
+	// survives when two stored rows turn out to be the same posting.
+	Hidden             bool
 	MinimumDegree      string
 	EmploymentType     string
 	CareerLevel        string

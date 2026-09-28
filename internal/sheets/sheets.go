@@ -150,6 +150,7 @@ func (c *Client) ExistingPostings(ctx context.Context) (map[string]store.Existin
 			Site:               cellString(row, colSite),
 			Expired:            cellBool(row, colExpired),
 			Applied:            cellBool(row, colApplied),
+			Hidden:             cellBool(row, colHidden),
 			MinimumDegree:      cellString(row, colMinimumDegree),
 			EmploymentType:     cellString(row, colEmploymentType),
 			CareerLevel:        cellString(row, colCareerLevel),

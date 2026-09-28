@@ -143,11 +143,14 @@ func (a *Adapter) Fetch() ([]job.Posting, error) {
 }
 
 // fullDescription stitches together the intro, each bullet section
-// (heading, then one line per <li>) and the closing note.
+// (heading, then one "• " line per <li>) and the closing note. The bullet
+// marker is what keeps a section heading distinguishable from its items
+// once blank lines are collapsed.
 func (p posting) fullDescription() string {
 	parts := []string{p.DescriptionPlain}
 	for _, l := range p.Lists {
-		parts = append(parts, l.Text, htmlutil.StripToText(strings.NewReplacer("</li>", "\n", "<br>", "\n", "<br/>", "\n").Replace(l.Content)))
+		items := htmlutil.StripToText(strings.NewReplacer("<li>", "\n• ", "</li>", "\n", "<br>", "\n", "<br/>", "\n").Replace(l.Content))
+		parts = append(parts, l.Text, items)
 	}
 	parts = append(parts, p.AdditionalPlain)
 	return normalizeText(strings.Join(parts, "\n"))

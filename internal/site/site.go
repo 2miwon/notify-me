@@ -15,3 +15,13 @@ type Adapter interface {
 	// than discarding results because of one bad item.
 	Fetch() ([]job.Posting, error)
 }
+
+// URLCanonicalizer is implemented by adapters whose listing links carry
+// volatile parts (e.g. Apple's "?team=..." that changes with whichever
+// filter surfaced the posting). Stored postings are keyed by URL, so the
+// crawler maps both fresh and already-stored URLs through CanonicalURL
+// before comparing them; otherwise one posting would look new on every
+// run and lose the app's Hidden/Seen state.
+type URLCanonicalizer interface {
+	CanonicalURL(url string) string
+}

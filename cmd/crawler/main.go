@@ -173,6 +173,40 @@ func run() error {
 		}
 		totalFetched += len(postings)
 
+		if canon, ok := a.(site.URLCanonicalizer); ok {
+			for i := range postings {
+				postings[i].URL = canon.CanonicalURL(postings[i].URL)
+			}
+			// Records stored before canonicalization (or under a different
+			// volatile variant) are re-keyed so they match this run's URLs.
+			// rec.ID still addresses the original record in the store.
+			var siteURLs []string
+			for url, rec := range existing {
+				if rec.Site == a.Name() {
+					siteURLs = append(siteURLs, url)
+				}
+			}
+			sort.Strings(siteURLs)
+			for _, url := range siteURLs {
+				key := canon.CanonicalURL(url)
+				if key == url {
+					continue
+				}
+				rec := existing[url]
+				delete(existing, url)
+				if other, clash := existing[key]; clash {
+					// The same posting is already stored under another variant;
+					// keep tracking the copy carrying more of the user's state.
+					// The other one is left in the store for the user to remove.
+					log.Printf("WARN: %s: duplicate stored records for %s", a.Name(), key)
+					if !prefer(rec, other) {
+						continue
+					}
+				}
+				existing[key] = rec
+			}
+		}
+
 		liveURLs := make(map[string]bool, len(postings))
 		for _, p := range postings {
 			if !cfg.MatchesLocation(p.Location) {
@@ -382,6 +416,16 @@ func fetchAll(adapters []site.Adapter, workers int) []fetchResult {
 	close(jobs)
 	wg.Wait()
 	return results
+}
+
+// prefer reports whether stored record a should be tracked over b when both
+// turn out to be the same posting: applied history first, then a hidden
+// flag, so the copy the user already acted on is the one kept in sync.
+func prefer(a, b store.ExistingPosting) bool {
+	if a.Applied != b.Applied {
+		return a.Applied
+	}
+	return a.Hidden && !b.Hidden
 }
 
 // writePacer serializes writes to Notion at 2.5 requests/second, a little
