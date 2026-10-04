@@ -557,6 +557,20 @@ sites:
       - "SG"
     lever_dev_only: true
 
+  # Binance — on Lever (slug "binance"). No KR-country postings; most
+  # roles are SG-registered with location "Asia" (remote across Asia).
+  # Remote only: its hybrid roles need relocation to Hong Kong/Taipei.
+  binance:
+    lever_company_slug: "binance"
+    lever_company: "Binance"
+    lever_countries:
+      - "KR"
+      - "JP"
+      - "SG"
+    lever_workplace_types:
+      - "remote"
+    lever_dev_only: true
+
   1password:
     ashby_company_slug: "1password"
     ashby_company: "1Password"

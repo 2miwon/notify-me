@@ -40,6 +40,25 @@ struct JobPosting: Identifiable, Hashable {
     /// means the posting did not make a claim either way.
     let visaSponsorship: String
 
+    /// Visa badge text, or nil when it says nothing useful: a role based in
+    /// Korea needs no visa, so "Not stated" there is just noise.
+    var visaBadgeValue: String? {
+        if visaSponsorship.isEmpty { return nil }
+        if visaSponsorship == "Not stated" && isKoreaBased { return nil }
+        return visaSponsorship
+    }
+
+    /// Korea-based when the location says so, or — since many Korean boards
+    /// leave location blank — when the company or location is written in
+    /// Hangul.
+    var isKoreaBased: Bool {
+        let place = location.lowercased()
+        if ["korea", "seoul", "pangyo", "bundang", "seongnam"].contains(where: place.contains) {
+            return true
+        }
+        return (company + location).unicodeScalars.contains { (0xAC00...0xD7A3).contains($0.value) }
+    }
+
     /// Full posting body text. Present immediately for the Sheets backend
     /// (it's just another column, free with the row); nil for Notion
     /// until `JobStore.fetchDescription(id:)` is called on demand — the

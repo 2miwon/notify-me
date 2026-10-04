@@ -864,13 +864,13 @@ struct JobCardView: View, Equatable {
                     }
                 }
 
-                if !posting.employmentType.isEmpty || !posting.careerLevel.isEmpty || posting.minYearsExperience != nil || !posting.minimumDegree.isEmpty || !posting.visaSponsorship.isEmpty {
+                if !posting.employmentType.isEmpty || !posting.careerLevel.isEmpty || posting.minYearsExperience != nil || !posting.minimumDegree.isEmpty || posting.visaBadgeValue != nil {
                     HStack(spacing: 4) {
                         if !posting.employmentType.isEmpty { badge(posting.employmentType) }
                         if !posting.careerLevel.isEmpty { badge(posting.careerLevel) }
                         if let years = posting.minYearsExperience { badge("경력 \(years)년+") }
                         if !posting.minimumDegree.isEmpty { badge(degreeLabel(posting.minimumDegree)) }
-						if !posting.visaSponsorship.isEmpty { badge("비자 " + visaSponsorshipLabel(posting.visaSponsorship)) }
+						if let visa = posting.visaBadgeValue { badge("비자 " + visaSponsorshipLabel(visa)) }
                     }
                 }
 
@@ -1001,7 +1001,7 @@ private struct DetailView: View {
                 if !posting.careerLevel.isEmpty { badge(posting.careerLevel) }
                 if let years = posting.minYearsExperience { badge("경력 \(years)년+") }
                 if !posting.minimumDegree.isEmpty { badge(degreeLabel(posting.minimumDegree)) }
-				if !posting.visaSponsorship.isEmpty { badge("비자 " + visaSponsorshipLabel(posting.visaSponsorship)) }
+				if let visa = posting.visaBadgeValue { badge("비자 " + visaSponsorshipLabel(visa)) }
                 if !posting.location.isEmpty {
                     Label(posting.location, systemImage: "mappin.and.ellipse")
                         .font(.caption)

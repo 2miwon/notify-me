@@ -183,10 +183,10 @@ func canonicalEmploymentType(raw string) string {
 	return strings.TrimSpace(raw)
 }
 
+// detailLink always builds the Korean detail URL. The API's jobDetailLink
+// omits lang, so a browser with an English locale lands on the English site,
+// which lacks Korean-only postings and bounces to an empty listing.
 func detailLink(item listItem) string {
-	if item.JobDetailLink != "" {
-		return item.JobDetailLink
-	}
 	return fmt.Sprintf("%s?annoId=%d&lang=ko", detailURL, item.AnnoID)
 }
 

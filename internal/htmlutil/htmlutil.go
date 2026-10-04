@@ -27,6 +27,9 @@ func StripToText(htmlFragment string) string {
 	// whose <style>/<title> text would otherwise leak into the result.
 	doc.Find("style, script, title").Remove()
 	doc.Find("br").ReplaceWithHtml("\n")
+	// Block elements end a line too; without this, consecutive <p>/<li>
+	// items (GreetingHR's 자격요건 bullets) run together as "...분2년 이상의...".
+	doc.Find("p, li, div, h1, h2, h3, h4, h5, h6, tr, blockquote").AppendHtml("\n")
 
 	var lines []string
 	for _, line := range strings.Split(doc.Text(), "\n") {

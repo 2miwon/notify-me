@@ -9,7 +9,7 @@
 //	    employmentType, careerInfo{from, type}, url}]}]}
 //
 // Descriptions come from the GreetingHR opening page (see
-// greetinghr.FetchDescription).
+// greetinghr.FetchOpening).
 package banksalad
 
 import (
@@ -105,10 +105,9 @@ func (a *Adapter) Fetch() ([]job.Posting, error) {
 					p.CareerLevel = "경력"
 				}
 			}
-			if desc, err := greetinghr.FetchDescription(a.client, p.URL); err == nil {
-				p.Description = desc
-			}
-			p.MinYearsExperience = job.ExtractMinYearsExperience(p.Title + "\n" + p.Description)
+			opening, _ := greetinghr.FetchOpening(a.client, p.URL)
+			p.Description = opening.Description
+			p.MinYearsExperience = opening.YearsOrExtract(p.Title)
 			postings = append(postings, p)
 		}
 	}

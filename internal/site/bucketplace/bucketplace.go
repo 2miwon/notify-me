@@ -8,7 +8,7 @@
 //
 // Each recruitUrl is a GreetingHR opening page, but the GreetingHR
 // company home itself 404s — so the list comes from Gatsby and only the
-// description from GreetingHR (see greetinghr.FetchDescription).
+// description from GreetingHR (see greetinghr.FetchOpening).
 package bucketplace
 
 import (
@@ -100,10 +100,9 @@ func (a *Adapter) Fetch() ([]job.Posting, error) {
 			EmploymentType: employmentType(f.HiringType, f.Name),
 			PostedAt:       time.Now().UTC(),
 		}
-		if desc, err := greetinghr.FetchDescription(a.client, f.RecruitURL); err == nil {
-			p.Description = desc
-		}
-		p.MinYearsExperience = job.ExtractMinYearsExperience(p.Title + "\n" + p.Description)
+		opening, _ := greetinghr.FetchOpening(a.client, f.RecruitURL)
+		p.Description = opening.Description
+		p.MinYearsExperience = opening.YearsOrExtract(p.Title)
 		postings = append(postings, p)
 	}
 	return postings, nil

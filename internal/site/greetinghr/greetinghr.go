@@ -131,7 +131,30 @@ type openingDetail struct {
 		OpeningsInfo struct {
 			Detail string `json:"detail"`
 		} `json:"openingsInfo"`
+		// CareerInfo is the structured career requirement shown on the
+		// opening page ("경력 7년 이상"), which often isn't repeated in the
+		// HTML body at all.
+		CareerInfo *struct {
+			From *int `json:"from"`
+		} `json:"careerInfo"`
 	} `json:"data"`
+}
+
+// Opening is what one GreetingHR opening page yields beyond its listing.
+type Opening struct {
+	Description string
+	// MinYearsExperience is GreetingHR's own structured minimum, nil when
+	// the opening doesn't set one (신입/경력무관).
+	MinYearsExperience *int
+}
+
+// YearsOrExtract prefers the structured minimum, falling back to scanning
+// title and description text.
+func (o Opening) YearsOrExtract(title string) *int {
+	if o.MinYearsExperience != nil {
+		return o.MinYearsExperience
+	}
+	return job.ExtractMinYearsExperience(title + "\n" + o.Description)
 }
 
 func (a *Adapter) Fetch() ([]job.Posting, error) {
@@ -177,10 +200,9 @@ func (a *Adapter) Fetch() ([]job.Posting, error) {
 
 		// A failed detail fetch is a lesser failure than losing the
 		// posting entirely — keep it with just the list fields.
-		if desc, err := a.fetchDescription(o.OpeningID); err == nil {
-			p.Description = desc
-		}
-		p.MinYearsExperience = job.ExtractMinYearsExperience(p.Title + "\n" + p.Description)
+		opening, _ := FetchOpening(a.client, p.URL)
+		p.Description = opening.Description
+		p.MinYearsExperience = opening.YearsOrExtract(p.Title)
 
 		postings = append(postings, p)
 	}
@@ -205,28 +227,30 @@ func (a *Adapter) fetchOpenings() ([]openingSummary, error) {
 	return openings, nil
 }
 
-func (a *Adapter) fetchDescription(openingID int64) (string, error) {
-	return FetchDescription(a.client, fmt.Sprintf("%s/ko/o/%d", a.baseURL(), openingID))
-}
-
-// FetchDescription returns the plain-text body of one GreetingHR opening
-// page (".../ko/o/<openingId>"). Exported for sites that list their
-// openings somewhere else but link each one to GreetingHR (bucketplace).
-func FetchDescription(client *http.Client, openingURL string) (string, error) {
+// FetchOpening returns the plain-text body and structured career minimum of
+// one GreetingHR opening page (".../ko/o/<openingId>"). Exported for sites
+// that list their openings somewhere else but link each one to GreetingHR
+// (bucketplace, banksalad).
+func FetchOpening(client *http.Client, openingURL string) (Opening, error) {
 	html, err := getHTML(client, openingURL)
 	if err != nil {
-		return "", err
+		return Opening{}, err
 	}
 
 	raw, ok := extractNextDataQuery(html, "career")
 	if !ok {
-		return "", fmt.Errorf("getOpeningById query not found in __NEXT_DATA__")
+		return Opening{}, fmt.Errorf("getOpeningById query not found in __NEXT_DATA__")
 	}
 	var detail openingDetail
 	if err := json.Unmarshal(raw, &detail); err != nil {
-		return "", fmt.Errorf("decode opening detail: %w", err)
+		return Opening{}, fmt.Errorf("decode opening detail: %w", err)
 	}
-	return htmlutil.StripToText(detail.Data.OpeningsInfo.Detail), nil
+	opening := Opening{Description: htmlutil.StripToText(detail.Data.OpeningsInfo.Detail)}
+	if c := detail.Data.CareerInfo; c != nil && c.From != nil && *c.From > 0 {
+		years := *c.From
+		opening.MinYearsExperience = &years
+	}
+	return opening, nil
 }
 
 func getHTML(client *http.Client, url string) (string, error) {

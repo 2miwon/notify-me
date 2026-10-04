@@ -82,6 +82,12 @@ func (a *Adapter) Fetch() ([]job.Posting, error) {
 			return postings, fmt.Errorf("apple: list page %d: %w", page, err)
 		}
 		if len(listings) == 0 {
+			// Apple intermittently serves a results page with no listings.
+			// Reporting that as success would make the expiry sweep delete
+			// every stored Apple posting, only to recreate them next run.
+			if page == 1 {
+				return nil, fmt.Errorf("apple: list page 1 returned no listings")
+			}
 			break
 		}
 

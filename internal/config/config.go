@@ -147,6 +147,9 @@ type SiteConfig struct {
 	LeverCountries   []string `yaml:"lever_countries"`
 	LeverTeams       []string `yaml:"lever_teams"`
 	LeverDevOnly     bool     `yaml:"lever_dev_only"`
+	// LeverWorkplaceTypes allow-lists Lever's workplaceType ("remote",
+	// "hybrid", "onsite"). Empty means no restriction.
+	LeverWorkplaceTypes []string `yaml:"lever_workplace_types"`
 
 	// greenhouse: company slug + location allow-list against
 	// boards-api.greenhouse.io's public Job Board API — see

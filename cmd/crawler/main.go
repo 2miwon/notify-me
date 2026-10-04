@@ -520,7 +520,7 @@ func buildAdapters(cfg *config.Config) []site.Adapter {
 		adapters = append(adapters, ashby.New(sc.AshbyCompanySlug, sc.AshbyCompany, sc.AshbyLocations, sc.AshbyDevOnly))
 	}
 	if sc, ok := cfg.Sites["channeltalk"]; ok {
-		adapters = append(adapters, lever.New(sc.LeverCompanySlug, sc.LeverCompany, sc.LeverCountries, sc.LeverTeams, sc.LeverDevOnly))
+		adapters = append(adapters, lever.New(sc.LeverCompanySlug, sc.LeverCompany, sc.LeverCountries, sc.LeverTeams, sc.LeverWorkplaceTypes, sc.LeverDevOnly))
 	}
 	if sc, ok := cfg.Sites["sendbird"]; ok {
 		adapters = append(adapters, greenhouse.New(sc.GreenhouseCompanySlug, sc.GreenhouseCompany, sc.GreenhouseLocations, sc.GreenhouseDevOnly))
@@ -559,7 +559,7 @@ func buildAdapters(cfg *config.Config) []site.Adapter {
 		adapters = append(adapters, greetinghr.New(sc.GreetinghrSubdomain, sc.GreetinghrBaseURL, sc.GreetinghrListPath, sc.GreetinghrCompany, sc.GreetinghrDevOnly))
 	}
 	if sc, ok := cfg.Sites["hyperconnect"]; ok {
-		adapters = append(adapters, lever.New(sc.LeverCompanySlug, sc.LeverCompany, sc.LeverCountries, sc.LeverTeams, sc.LeverDevOnly))
+		adapters = append(adapters, lever.New(sc.LeverCompanySlug, sc.LeverCompany, sc.LeverCountries, sc.LeverTeams, sc.LeverWorkplaceTypes, sc.LeverDevOnly))
 	}
 	if sc, ok := cfg.Sites["anthropic"]; ok {
 		adapters = append(adapters, greenhouse.New(sc.GreenhouseCompanySlug, sc.GreenhouseCompany, sc.GreenhouseLocations, sc.GreenhouseDevOnly))
@@ -606,8 +606,11 @@ func buildAdapters(cfg *config.Config) []site.Adapter {
 	if sc, ok := cfg.Sites["posthog"]; ok {
 		adapters = append(adapters, ashby.New(sc.AshbyCompanySlug, sc.AshbyCompany, sc.AshbyLocations, sc.AshbyDevOnly))
 	}
+	if sc, ok := cfg.Sites["binance"]; ok {
+		adapters = append(adapters, lever.New(sc.LeverCompanySlug, sc.LeverCompany, sc.LeverCountries, sc.LeverTeams, sc.LeverWorkplaceTypes, sc.LeverDevOnly))
+	}
 	if sc, ok := cfg.Sites["palantir"]; ok {
-		adapters = append(adapters, lever.New(sc.LeverCompanySlug, sc.LeverCompany, sc.LeverCountries, sc.LeverTeams, sc.LeverDevOnly))
+		adapters = append(adapters, lever.New(sc.LeverCompanySlug, sc.LeverCompany, sc.LeverCountries, sc.LeverTeams, sc.LeverWorkplaceTypes, sc.LeverDevOnly))
 	}
 	for _, name := range []string{"hybe", "wrtn", "bithumb", "kakaogames", "zigbang", "myrealtrip"} {
 		if sc, ok := cfg.Sites[name]; ok {

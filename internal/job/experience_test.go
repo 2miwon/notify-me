@@ -51,3 +51,38 @@ func TestExtractMinYearsExperienceEnglishVariants(t *testing.T) {
 		}
 	}
 }
+
+func TestExtractMinYearsExperiencePrefersLeadingRequirement(t *testing.T) {
+	tests := []struct {
+		text string
+		want int
+	}{
+		{"자격요건\n7년 이상의 백엔드 개발 경험 및 컴퓨터공학 전공\n1년 이상의 커머스 또는 결제·정산(핀테크) 도메인 경력이 있는 분", 7},
+		{"13년 이상의 백엔드 개발 경험이 있는 분\n2년 이상의 소규모 엔지니어링 팀 매니징 경험이 있는 분", 13},
+		{"3년 이상 10년 이하의 정보보안 또는 IT 인프라 업무 경험이 있는 분", 3},
+	}
+	for _, test := range tests {
+		got := ExtractMinYearsExperience(test.text)
+		if got == nil || *got != test.want {
+			t.Errorf("ExtractMinYearsExperience(%q) = %v, want %d", test.text, got, test.want)
+		}
+	}
+}
+
+func TestExtractMinYearsExperienceCoupangPhrasing(t *testing.T) {
+	tests := []struct {
+		text string
+		want int
+	}{
+		{"소프트웨어 개발 경험 10년 이상\n매니저 관리를 포함한 관리 경험 2년 이상 (멘토, 테크 리드 경험 포함)", 10},
+		{"10+ years of professional backend development experience\n7+ years of experience in Java/Kotlin/Spring-based service development", 10},
+		{"대규모 엔터프라이즈 네트워크 설계, 기획, 구축 및 운영 관련 경력 최소 10년 이상 보유하신 분\n해당 직무 경력 15년 이상이신 분", 10},
+		{"10–15+ years of experience in cybersecurity\n5+ years in a leadership role", 10},
+	}
+	for _, test := range tests {
+		got := ExtractMinYearsExperience(test.text)
+		if got == nil || *got != test.want {
+			t.Errorf("ExtractMinYearsExperience(%q) = %v, want %d", test.text, got, test.want)
+		}
+	}
+}
