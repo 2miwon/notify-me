@@ -52,7 +52,7 @@ struct ContentView: View {
     @State private var visaSponsorshipFilter: Set<String> = []
     @State private var sortOrder: PostingSortOrder = .newest
     @State private var detailPostingID: String?
-    @State private var descriptionCache: [String: String] = [:]
+    @StateObject private var descriptionIndex = DescriptionIndex()
     @State private var loadingDescriptionIDs: Set<String> = []
     @State private var workspace: Workspace = .jobs
     @State private var jobsPresentation: JobsPresentation = .board
@@ -117,12 +117,21 @@ struct ContentView: View {
             .filter { careerLevelFilter.isEmpty || careerLevelFilter.contains($0.careerLevel) }
             .filter { minimumDegreeFilter.isEmpty || minimumDegreeFilter.contains($0.minimumDegree) }
 			.filter { visaSponsorshipFilter.isEmpty || visaSponsorshipFilter.contains($0.visaSponsorship) }
-            .filter {
-                searchText.isEmpty
-                    || $0.title.localizedCaseInsensitiveContains(searchText)
-                    || $0.company.localizedCaseInsensitiveContains(searchText)
-            }
+            .filter { matchesSearch($0) }
             .sorted(by: sortOrder.comparator)
+    }
+
+    private var trimmedSearch: String {
+        searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// Title, company, or body (once indexed — see DescriptionIndex).
+    private func matchesSearch(_ posting: JobPosting) -> Bool {
+        let query = trimmedSearch
+        guard !query.isEmpty else { return true }
+        return posting.title.localizedCaseInsensitiveContains(query)
+            || posting.company.localizedCaseInsensitiveContains(query)
+            || descriptionIndex.bodyContains(posting, loweredQuery: query.lowercased())
     }
 
     /// Filtered postings grouped by site, in one pass. The board used to
@@ -223,7 +232,7 @@ struct ContentView: View {
             if let posting = detailPosting {
                 DetailView(
                     posting: posting,
-                    description: descriptionCache[posting.id],
+                    description: descriptionIndex.text(for: posting),
                     isLoadingDescription: loadingDescriptionIDs.contains(posting.id),
                     onOpen: { openPosting(posting) },
                     onToggleBookmark: { toggle(posting, .bookmarked) },
@@ -286,8 +295,13 @@ struct ContentView: View {
             HStack(spacing: 4) {
                 Image(systemName: "magnifyingglass")
                     .foregroundStyle(.secondary)
-                TextField("Search title or company", text: $searchText)
+                TextField("제목·회사·본문 검색", text: $searchText)
                     .textFieldStyle(.plain)
+                if !trimmedSearch.isEmpty && descriptionIndex.pendingCount > 0 {
+                    ProgressView()
+                        .controlSize(.small)
+                        .help("본문 받아오는 중 — \(descriptionIndex.pendingCount)건 남음. 아직 못 받은 공고는 본문 검색에서 빠져요.")
+                }
             }
             .padding(.horizontal, 8)
             .padding(.vertical, 5)
@@ -589,6 +603,8 @@ struct ContentView: View {
             applyRecentWrites(to: &fetched)
             postings = fetched
             errorMessage = nil
+            let credentials = credentials
+            descriptionIndex.index(fetched) { try credentials.makeStore() }
         } catch {
             if postings.isEmpty {
                 errorMessage = error.localizedDescription
@@ -602,35 +618,20 @@ struct ContentView: View {
     }
 
     private func loadDescriptionIfNeeded(_ posting: JobPosting) async {
-        if let cached = descriptionCache[posting.id] {
-            descriptionCache[posting.id] = normalizedDescription(cached)
-            return
-        }
+        if descriptionIndex.text(for: posting) != nil { return }
         if let existing = posting.description {
-            descriptionCache[posting.id] = normalizedDescription(existing)
+            descriptionIndex.set(existing, for: posting)
             return
         }
         loadingDescriptionIDs.insert(posting.id)
         defer { loadingDescriptionIDs.remove(posting.id) }
         do {
             let store = try credentials.makeStore()
-            descriptionCache[posting.id] = normalizedDescription(try await store.fetchDescription(id: posting.id))
+            descriptionIndex.set(try await store.fetchDescription(id: posting.id), for: posting)
         } catch {
-            descriptionCache[posting.id] = ""
+            // Leave it unindexed: a transient failure shouldn't be cached
+            // to disk as "this posting has no body".
         }
-    }
-
-    /// Some CMS pages duplicate a paragraph in nested layout elements. The
-    /// crawler now removes those duplicates at the source, and this cleanup
-    /// also makes descriptions saved before that fix display correctly.
-    private func normalizedDescription(_ source: String) -> String {
-        var lines: [String] = []
-        for rawLine in source.components(separatedBy: .newlines) {
-            let line = rawLine.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !line.isEmpty, lines.last != line else { continue }
-            lines.append(line.replacingOccurrences(of: "\\.", with: "."))
-        }
-        return lines.joined(separator: "\n")
     }
 
     // MARK: - Actions

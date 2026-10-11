@@ -128,6 +128,9 @@ type SiteConfig struct {
 	// NinehireCompanyID is the UUID the site's own homepage passes as
 	// `companyId`; copy it from a network request on the company's site.
 	NinehireSubdomain string `yaml:"ninehire_subdomain"`
+	// NinehireBaseURL overrides the default <subdomain>.ninehire.site
+	// origin for a company on its own custom domain (Kakao Healthcare).
+	NinehireBaseURL   string `yaml:"ninehire_base_url"`
 	NinehireCompanyID string `yaml:"ninehire_company_id"`
 	NinehireCompany   string `yaml:"ninehire_company"`
 	NinehireDevOnly   bool   `yaml:"ninehire_dev_only"`
@@ -177,6 +180,10 @@ type SiteConfig struct {
 	RoundhrDevOnly bool   `yaml:"roundhr_dev_only"`
 
 	BanksaladDevOnly bool `yaml:"banksalad_dev_only"`
+
+	// KREAM — custom JSP-based ATS, no other knobs needed. See
+	// internal/site/kream.
+	KreamDevOnly bool `yaml:"kream_dev_only"`
 
 	// shopify: location substring allow-list + DevOnly — see
 	// internal/site/shopify.

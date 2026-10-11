@@ -2,6 +2,9 @@
 // NineHire (나인하이어) — a Korean ATS SaaS platform. Kakao Pay
 // Securities' career site (kakaopaysec.ninehire.site) is one instance;
 // any other "<company>.ninehire.site" site should work the same way.
+// Kakao Healthcare puts the same platform behind its own custom domain
+// (recruit.kakaohealthcare.com) instead — hence BaseURL, same pattern as
+// internal/site/greetinghr's.
 //
 // The listing is a plain public JSON endpoint (no auth, matches what the
 // site's own homepage calls):
@@ -42,8 +45,14 @@ const (
 // Adapter crawls one NineHire-hosted company's career site.
 type Adapter struct {
 	// Subdomain is the company's NineHire subdomain, e.g. "kakaopaysec"
-	// for kakaopaysec.ninehire.site.
+	// for kakaopaysec.ninehire.site — also used as this adapter's site
+	// identity (Name()), even when BaseURL overrides where requests
+	// actually go.
 	Subdomain string
+	// BaseURL overrides the default "https://<subdomain>.ninehire.site"
+	// origin for a company on its own custom domain (Kakao Healthcare:
+	// recruit.kakaohealthcare.com). Leave empty to use the default origin.
+	BaseURL string
 	// CompanyID is the UUID the site's own homepage passes as
 	// `companyId` — copy it from a network request on the company's site.
 	CompanyID string
@@ -58,9 +67,10 @@ type Adapter struct {
 	client *http.Client
 }
 
-func New(subdomain, companyID, company string, devOnly bool) *Adapter {
+func New(subdomain, baseURL, companyID, company string, devOnly bool) *Adapter {
 	return &Adapter{
 		Subdomain: subdomain,
+		BaseURL:   baseURL,
 		CompanyID: companyID,
 		Company:   company,
 		DevOnly:   devOnly,
@@ -71,6 +81,9 @@ func New(subdomain, companyID, company string, devOnly bool) *Adapter {
 func (a *Adapter) Name() string { return a.Subdomain }
 
 func (a *Adapter) baseURL() string {
+	if a.BaseURL != "" {
+		return a.BaseURL
+	}
 	return "https://" + a.Subdomain + ".ninehire.site"
 }
 
@@ -126,7 +139,7 @@ func (a *Adapter) Fetch() ([]job.Posting, error) {
 			if title == "" {
 				title = r.Title
 			}
-			if a.DevOnly && !devRelated(r.JobGroup.Title, title) {
+			if a.DevOnly && !job.LooksDev(title, r.JobGroup.Title) {
 				continue
 			}
 
@@ -275,39 +288,6 @@ func canonicalEmploymentType(raw string) string {
 	default:
 		return raw
 	}
-}
-
-// devRelated decides whether a posting looks like a software/engineering
-// role. NineHire's own job-group taxonomy is specific enough to allow-
-// list directly (unlike Netflix's or Nvidia's, it doesn't visibly mix
-// dev and non-dev titles within one group on inspection), but a title
-// keyword check is ORed in too as the same safety net every other
-// adapter's devRelated uses — either signal is enough to keep a posting.
-var devJobGroups = map[string]bool{
-	"백엔드 개발":       true,
-	"프론트엔드 개발":     true,
-	"DevOps":       true,
-	"AI 엔지니어링":     true,
-	"데이터 엔지니어링":    true,
-	"데이터베이스 엔지니어링": true,
-	"프로덕트 엔지니어링":   true,
-}
-
-var devTitleKeywords = []string{
-	"개발자", "엔지니어", "engineer", "developer", "devops", "sre", "swe",
-}
-
-func devRelated(jobGroup, title string) bool {
-	if devJobGroups[jobGroup] {
-		return true
-	}
-	lower := strings.ToLower(title)
-	for _, kw := range devTitleKeywords {
-		if strings.Contains(lower, strings.ToLower(kw)) {
-			return true
-		}
-	}
-	return false
 }
 
 func canonicalCareerType(raw string) string {

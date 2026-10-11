@@ -142,8 +142,15 @@ sites:
 
   kakaopay:
     greetinghr_subdomain: "kakaopay"
+    # occupations=기술 used to be enough on its own, but the site's own
+    # query-param filter stopped working at some point (2026-10) — it now
+    # silently returns every occupation (PM/마케팅/디자인/컴플라이언스/
+    # 어시스턴트 included) regardless of this param. Kept as-is since it's
+    # harmless and may start working again, but greetinghr_dev_only below
+    # is what actually filters now.
     greetinghr_list_path: "/ko/main?occupations=%EA%B8%B0%EC%88%A0"
     greetinghr_company: "카카오페이"
+    greetinghr_dev_only: true
 
   # Same GreetingHR platform, but on Upstage's own custom domain instead
   # of the default <subdomain>.career.greetinghr.com origin — hence
@@ -168,6 +175,21 @@ sites:
     ninehire_company_id: "54c7edd0-1f8a-11ed-bd78-476d9de76402"
     ninehire_company: "카카오페이증권"
     ninehire_dev_only: true
+
+  # Kakao Healthcare — same NineHire platform as kakaopaysec above, but
+  # on its own custom domain. Job group "테크" is its dev category.
+  kakaohealthcare:
+    ninehire_subdomain: "kakaohealthcare"
+    ninehire_base_url: "https://recruit.kakaohealthcare.com"
+    ninehire_company_id: "48b8c300-ac2c-11ed-9a7f-25af3e3b8401"
+    ninehire_company: "카카오헬스케어"
+    ninehire_dev_only: true
+
+  # KREAM (네이버 자회사, 한정판 거래 플랫폼) — custom JSP-based ATS, not a
+  # shared SaaS platform. See internal/site/kream. Includes KREAM Pay
+  # postings (company shown per-posting via sysCompanyCdNm).
+  kream:
+    kream_dev_only: true
 
   # Snowflake's own careers.snowflake.com is a heavy Phenom widget page
   # (results embedded in a large inline JSON blob, no clean endpoint) —
@@ -363,6 +385,12 @@ sites:
       - "Global"
     greenhouse_dev_only: true
 
+  cloudflare:
+    greenhouse_company_slug: "cloudflare"
+    greenhouse_company: "Cloudflare"
+    greenhouse_locations: *remote_korea_locations
+    greenhouse_dev_only: true
+
   elastic:
     greenhouse_company_slug: "elastic"
     greenhouse_company: "Elastic"
@@ -373,6 +401,26 @@ sites:
     greenhouse_company_slug: "mongodb"
     greenhouse_company: "MongoDB"
     greenhouse_locations: *remote_korea_locations
+    greenhouse_dev_only: true
+
+  # FuriosaAI (퓨리오사에이아이) — Korean AI chip (NPU) unicorn. Its own
+  # careers page (furiosa.ai/careers) is a static Webflow site with no
+  # listing API of its own, but each posting's "Apply" link exposes
+  # ?gh_jid=<id> — the underlying ATS is plain Greenhouse (board slug
+  # "furiosaai"), so this goes through internal/site/greenhouse directly
+  # rather than scraping Webflow HTML. Mixes AI software roles with chip/
+  # hardware ones (Verification, SoC, Physical Engineering, Silicon
+  # Validation); greenhouse_dev_only plus the global exclude_keywords
+  # above (Hardware Engineer/ASIC/VLSI/Silicon/...) together keep this to
+  # software/compiler/ML roles, not EE/chip-design ones.
+  furiosa:
+    greenhouse_company_slug: "furiosaai"
+    greenhouse_company: "FuriosaAI"
+    greenhouse_locations:
+      - "Seoul"
+      - "Dongtan"
+      - "Hwaseong"
+      - "Korea"
     greenhouse_dev_only: true
 
   # Shopify — remote-first, hires per region; see internal/site/shopify.

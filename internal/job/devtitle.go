@@ -34,6 +34,13 @@ var hardNonDevTitleHints = []string{
 	"설비", "시설", "cx researcher", "security analyst",
 	"grc", "control assurance", "vendor security assurance", "governance",
 	"program manager", "project manager",
+	// Chip/silicon design-verification roles (NPU/ASIC hardware teams at
+	// companies like FuriosaAI) — distinct from genuine software-engineer
+	// titles that happen to work on chip-adjacent systems (keep "SoC
+	// Firmware", "NPU Management Interface" etc., which are software).
+	"design verification", "physical engineering", "signal integrity", "power integrity",
+	"signal/power integrity", "soc design", "chip architect", "hw system",
+	"양산",
 }
 
 // nonDevTitleHints mark a title as a non-engineering role even when its
@@ -148,7 +155,7 @@ var devCategoryHints = []string{
 // devCategoryWords only count as whole words — "ai" as a substring would
 // otherwise match "Retail", "Maintenance", "Chain", ...; "tech" would
 // match "Technical Art" (NC's technical-artist job).
-var devCategoryWords = map[string]bool{"ai": true, "ml": true, "it": true, "dba": true, "tech": true, "technology": true}
+var devCategoryWords = map[string]bool{"ai": true, "ml": true, "it": true, "dba": true, "tech": true, "technology": true, "테크": true}
 
 // nonDevCategoryHints override a match: "사업개발" (business development)
 // contains "개발" but is a sales/BD function.

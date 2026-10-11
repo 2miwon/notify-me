@@ -49,6 +49,7 @@ import (
 	"github.com/2miwon/notify-me/internal/site/greetinghr"
 	"github.com/2miwon/notify-me/internal/site/kakao"
 	"github.com/2miwon/notify-me/internal/site/kakaobank"
+	"github.com/2miwon/notify-me/internal/site/kream"
 	"github.com/2miwon/notify-me/internal/site/lever"
 	"github.com/2miwon/notify-me/internal/site/line"
 	"github.com/2miwon/notify-me/internal/site/meta"
@@ -513,8 +514,10 @@ func buildAdapters(cfg *config.Config) []site.Adapter {
 	if sc, ok := cfg.Sites["sap"]; ok {
 		adapters = append(adapters, sap.New(sc.SAPListPath, sc.SAPDevOnly))
 	}
-	if sc, ok := cfg.Sites["kakaopaysec"]; ok {
-		adapters = append(adapters, ninehire.New(sc.NinehireSubdomain, sc.NinehireCompanyID, sc.NinehireCompany, sc.NinehireDevOnly))
+	for _, name := range []string{"kakaopaysec", "kakaohealthcare"} {
+		if sc, ok := cfg.Sites[name]; ok {
+			adapters = append(adapters, ninehire.New(sc.NinehireSubdomain, sc.NinehireBaseURL, sc.NinehireCompanyID, sc.NinehireCompany, sc.NinehireDevOnly))
+		}
 	}
 	if sc, ok := cfg.Sites["snowflake"]; ok {
 		adapters = append(adapters, ashby.New(sc.AshbyCompanySlug, sc.AshbyCompany, sc.AshbyLocations, sc.AshbyDevOnly))
@@ -541,6 +544,9 @@ func buildAdapters(cfg *config.Config) []site.Adapter {
 		adapters = append(adapters, greenhouse.New(sc.GreenhouseCompanySlug, sc.GreenhouseCompany, sc.GreenhouseLocations, sc.GreenhouseDevOnly))
 	}
 	if sc, ok := cfg.Sites["vercel"]; ok {
+		adapters = append(adapters, greenhouse.New(sc.GreenhouseCompanySlug, sc.GreenhouseCompany, sc.GreenhouseLocations, sc.GreenhouseDevOnly))
+	}
+	if sc, ok := cfg.Sites["cloudflare"]; ok {
 		adapters = append(adapters, greenhouse.New(sc.GreenhouseCompanySlug, sc.GreenhouseCompany, sc.GreenhouseLocations, sc.GreenhouseDevOnly))
 	}
 	if sc, ok := cfg.Sites["elastic"]; ok {
@@ -632,6 +638,9 @@ func buildAdapters(cfg *config.Config) []site.Adapter {
 	if sc, ok := cfg.Sites["banksalad"]; ok {
 		adapters = append(adapters, banksalad.New(sc.BanksaladDevOnly))
 	}
+	if sc, ok := cfg.Sites["kream"]; ok {
+		adapters = append(adapters, kream.New(sc.KreamDevOnly))
+	}
 	var roundhrNames []string
 	for name, sc := range cfg.Sites {
 		if sc.RoundhrCode != "" {
@@ -642,6 +651,9 @@ func buildAdapters(cfg *config.Config) []site.Adapter {
 	for _, name := range roundhrNames {
 		sc := cfg.Sites[name]
 		adapters = append(adapters, roundhr.New(sc.RoundhrCode, sc.RoundhrCompany, sc.RoundhrDevOnly))
+	}
+	if sc, ok := cfg.Sites["furiosa"]; ok {
+		adapters = append(adapters, greenhouse.New(sc.GreenhouseCompanySlug, sc.GreenhouseCompany, sc.GreenhouseLocations, sc.GreenhouseDevOnly))
 	}
 	if sc, ok := cfg.Sites["shopify"]; ok {
 		adapters = append(adapters, shopify.New(sc.ShopifyLocations, sc.ShopifyDevOnly))
