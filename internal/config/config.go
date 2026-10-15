@@ -190,6 +190,55 @@ type SiteConfig struct {
 	ShopifyLocations []string `yaml:"shopify_locations"`
 	ShopifyDevOnly   bool     `yaml:"shopify_dev_only"`
 
+	// mckinsey: city name from McKinsey's own job-search location list.
+	McKinseyCity    string `yaml:"mckinsey_city"`
+	McKinseyDevOnly bool   `yaml:"mckinsey_dev_only"`
+
+	// phenom: any Phenom People career site (BCG) — see
+	// internal/site/phenom. Any sites: entry with phenom_host set becomes one.
+	PhenomHost     string `yaml:"phenom_host"`
+	PhenomCompany  string `yaml:"phenom_company"`
+	PhenomLang     string `yaml:"phenom_lang"`
+	PhenomLangPath string `yaml:"phenom_lang_path"`
+	PhenomCountry  string `yaml:"phenom_country"`
+	PhenomDevOnly  bool   `yaml:"phenom_dev_only"`
+
+	// yello: any Yello (recsolu.com) job board (Kearney) — see
+	// internal/site/yello. Any sites: entry with yello_host set becomes one.
+	YelloHost      string   `yaml:"yello_host"`
+	YelloBoardID   string   `yaml:"yello_board_id"`
+	YelloCompany   string   `yaml:"yello_company"`
+	YelloLocations []string `yaml:"yello_locations"`
+	YelloDevOnly   bool     `yaml:"yello_dev_only"`
+
+	// goldman: LOCATION filter value as higher.gs.com spells it.
+	GoldmanCountry string `yaml:"goldman_country"`
+	// GoldmanCountries crawls several LOCATION filters as one site.
+	GoldmanCountries []string `yaml:"goldman_countries"`
+	GoldmanDevOnly   bool     `yaml:"goldman_dev_only"`
+
+	// oraclehcm: any Oracle Recruiting Cloud "Candidate Experience" site
+	// (JPMorgan) — see internal/site/oraclehcm. Any sites: entry with
+	// oraclehcm_host set becomes one.
+	OracleHCMHost       string `yaml:"oraclehcm_host"`
+	OracleHCMSite       string `yaml:"oraclehcm_site"`
+	OracleHCMLocationID string `yaml:"oraclehcm_location_id"`
+	// OracleHCMLocationIDs crawls several geographies as one site.
+	OracleHCMLocationIDs []string `yaml:"oraclehcm_location_ids"`
+	OracleHCMCompany     string   `yaml:"oraclehcm_company"`
+	OracleHCMDevOnly     bool     `yaml:"oraclehcm_dev_only"`
+
+	// pcsx: any Eightfold PCSX career site (Qualcomm) — see
+	// internal/site/pcsx. Any sites: entry with pcsx_host set becomes one.
+	PCSXHost     string `yaml:"pcsx_host"`
+	PCSXDomain   string `yaml:"pcsx_domain"`
+	PCSXCompany  string `yaml:"pcsx_company"`
+	PCSXQuery    string `yaml:"pcsx_query"`
+	PCSXLocation string `yaml:"pcsx_location"`
+	// PCSXLocations crawls several locations as one site.
+	PCSXLocations []string `yaml:"pcsx_locations"`
+	PCSXDevOnly   bool     `yaml:"pcsx_dev_only"`
+
 	// workday: any Workday "myworkdayjobs.com" career site — see
 	// internal/site/workday for where host/tenant/site come from. Any
 	// sites: entry with workday_host set becomes a workday adapter named
@@ -200,7 +249,18 @@ type SiteConfig struct {
 	WorkdayCompany    string   `yaml:"workday_company"`
 	WorkdaySearchText string   `yaml:"workday_search_text"`
 	WorkdayLocations  []string `yaml:"workday_locations"`
-	WorkdayDevOnly    bool     `yaml:"workday_dev_only"`
+	// WorkdayRegions crawls several search-text + location pairs as one
+	// site — Workday caps a listing at 1000 jobs, so a global tenant is
+	// searched per city rather than listed whole.
+	WorkdayRegions []WorkdayRegion `yaml:"workday_regions"`
+	WorkdayDevOnly bool            `yaml:"workday_dev_only"`
+}
+
+// WorkdayRegion is one search pass on a Workday site: the site's own
+// keyword search, then a location substring allow-list on the results.
+type WorkdayRegion struct {
+	Search    string   `yaml:"search"`
+	Locations []string `yaml:"locations"`
 }
 
 type Config struct {

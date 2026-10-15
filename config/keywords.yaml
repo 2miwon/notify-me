@@ -403,6 +403,126 @@ sites:
     greenhouse_locations: *remote_korea_locations
     greenhouse_dev_only: true
 
+  # MBB consulting firms, Seoul office. dev_only keeps their tech arms
+  # (McKinsey QuantumBlack / Tech & AI, BCG X forward-deployed AI roles)
+  # and drops the generalist consulting programs — flip to false to also
+  # see Associate / Business Analyst / Consultant postings.
+  # Bain isn't here: bain.com sits behind a Cloudflare bot challenge (see
+  # internal/site/SKIPPED.md).
+  mckinsey:
+    mckinsey_city: "Seoul"
+    mckinsey_dev_only: true
+
+  # Kearney — Yello job board (kearney.recsolu.com). Tech roles sit under
+  # "Kearney Activate" / Digital & Analytics; dev_only keeps the engineer/
+  # developer/data-scientist/architect ones. The board is global (~200
+  # roles), so Seoul plus the Asian hubs.
+  kearney:
+    yello_host: "kearney.recsolu.com"
+    yello_board_id: "EPd41qlA4_03IncZMnWyRQ"
+    yello_company: "Kearney"
+    yello_locations:
+      - "Seoul"
+      - "Korea"
+      - "Singapore"
+      - "Hong Kong"
+      - "Tokyo"
+    yello_dev_only: true
+
+  bcg:
+    phenom_host: "careers.bcg.com"
+    phenom_company: "BCG"
+    phenom_lang: "en_global"
+    phenom_lang_path: "global/en"
+    phenom_country: "Korea – Republic of Korea"
+    phenom_dev_only: true
+
+  # Global banks/asset managers: Seoul plus their Asian hubs (Singapore,
+  # Hong Kong, Tokyo), where their engineering hiring actually happens.
+  # Seoul alone is almost all markets/ops/banking.
+  # JPMorgan — Oracle Recruiting Cloud; location id = "Korea, Republic of"
+  # from the site's own location typeahead.
+  jpmorgan:
+    oraclehcm_host: "jpmc.fa.oraclecloud.com"
+    oraclehcm_site: "CX_1001"
+    # Korea, Singapore, Hong Kong, Japan (ids from the location typeahead).
+    oraclehcm_location_ids:
+      - "300000000289411"
+      - "300000000289639"
+      - "300000000289330"
+      - "300000000289387"
+    oraclehcm_company: "JPMorgan Chase"
+    oraclehcm_dev_only: true
+
+  # BlackRock — Workday tenant "blackrock", site "BlackRock_Professional".
+  # Seoul office is client business / sales; no Seoul engineering hub.
+  blackrock:
+    workday_host: "blackrock.wd1.myworkdayjobs.com"
+    workday_tenant: "blackrock"
+    workday_site: "BlackRock_Professional"
+    workday_company: "BlackRock"
+    workday_regions:
+      - search: "Seoul"
+        locations: ["Korea"]
+      - search: "Singapore"
+        locations: ["Singapore"]
+      - search: "Hong Kong"
+        locations: ["Hong Kong"]
+      - search: "Tokyo"
+        locations: ["Japan"]
+    workday_dev_only: true
+
+  # Goldman Sachs — higher.gs.com's own GraphQL API. Seoul is a small
+  # banking/legal office; Singapore/HK carry its Asian engineering roles.
+  goldman:
+    goldman_countries:
+      - "Korea, Republic of"
+      - "Singapore"
+      - "Hong Kong"
+      - "Japan"
+    goldman_dev_only: true
+
+  # Citi (한국씨티은행 포함) — Workday tenant "citi", site "2". Search text
+  # narrows the global listing to Seoul first (Workday pages max 20 jobs).
+  citi:
+    workday_host: "citi.wd5.myworkdayjobs.com"
+    workday_tenant: "citi"
+    workday_site: "2"
+    workday_company: "Citi"
+    workday_regions:
+      - search: "Seoul"
+        locations: ["Korea"]
+      - search: "Singapore"
+        locations: ["Singapore"]
+      - search: "Hong Kong"
+        locations: ["Hong Kong"]
+      - search: "Tokyo"
+        locations: ["Japan"]
+    workday_dev_only: true
+
+  # Morgan Stanley — Eightfold PCSX like qualcomm below. No Korea office
+  # hiring; Asian roles are Hong Kong / Tokyo (and Singapore).
+  morganstanley:
+    pcsx_host: "morganstanley.eightfold.ai"
+    pcsx_domain: "morganstanley.com"
+    pcsx_company: "Morgan Stanley"
+    pcsx_locations:
+      - "Hong Kong"
+      - "Tokyo, Japan"
+      - "Singapore"
+    pcsx_dev_only: true
+
+  # Qualcomm — Eightfold PCSX, same platform as microsoft/nvidia above.
+  # location "Korea" covers Seoul + 경기 offices and Korea-eligible remote.
+  # Many Korea roles are camera/ISP/ASIC hardware; dev_only plus the
+  # global exclude_keywords drop the chip-design ones.
+  qualcomm:
+    pcsx_host: "careers.qualcomm.com"
+    pcsx_domain: "qualcomm.com"
+    pcsx_company: "Qualcomm"
+    pcsx_location: "Korea"
+    pcsx_dev_only: true
+
   # FuriosaAI (퓨리오사에이아이) — Korean AI chip (NPU) unicorn. Its own
   # careers page (furiosa.ai/careers) is a static Webflow site with no
   # listing API of its own, but each posting's "Apply" link exposes

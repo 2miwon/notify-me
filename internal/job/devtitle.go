@@ -33,7 +33,7 @@ var hardNonDevTitleHints = []string{
 	"industrial engineer", "facility", "facilities", "mechanical", "electrical", "civil engineer",
 	"설비", "시설", "cx researcher", "security analyst",
 	"grc", "control assurance", "vendor security assurance", "governance",
-	"program manager", "project manager",
+	"program manager", "project manager", "product marketing", "account manager",
 	// Chip/silicon design-verification roles (NPU/ASIC hardware teams at
 	// companies like FuriosaAI) — distinct from genuine software-engineer
 	// titles that happen to work on chip-adjacent systems (keep "SoC
@@ -51,6 +51,8 @@ var nonDevTitleHints = []string{
 	"analyst", "번역", "translat", "assistant", "어시스턴트",
 	"product manager", "product management", "program manager", "project manager", "product owner", "기획",
 	"designer", "design lead", "디자이너",
+	"associate partner", "talent", "policy", "risk and controls", "controls lead",
+	"risk engagement", "product development manager",
 }
 
 // devTitleWords only count as whole words ("dba" inside another word is

@@ -44,6 +44,7 @@ import (
 	"github.com/2miwon/notify-me/internal/site/coupang"
 	"github.com/2miwon/notify-me/internal/site/daangn"
 	"github.com/2miwon/notify-me/internal/site/dunamu"
+	"github.com/2miwon/notify-me/internal/site/goldman"
 	"github.com/2miwon/notify-me/internal/site/google"
 	"github.com/2miwon/notify-me/internal/site/greenhouse"
 	"github.com/2miwon/notify-me/internal/site/greetinghr"
@@ -52,6 +53,7 @@ import (
 	"github.com/2miwon/notify-me/internal/site/kream"
 	"github.com/2miwon/notify-me/internal/site/lever"
 	"github.com/2miwon/notify-me/internal/site/line"
+	"github.com/2miwon/notify-me/internal/site/mckinsey"
 	"github.com/2miwon/notify-me/internal/site/meta"
 	"github.com/2miwon/notify-me/internal/site/microsoft"
 	"github.com/2miwon/notify-me/internal/site/naver"
@@ -63,15 +65,24 @@ import (
 	"github.com/2miwon/notify-me/internal/site/ninehire"
 	"github.com/2miwon/notify-me/internal/site/nvidia"
 	"github.com/2miwon/notify-me/internal/site/openai"
+	"github.com/2miwon/notify-me/internal/site/oraclehcm"
+	"github.com/2miwon/notify-me/internal/site/pcsx"
+	"github.com/2miwon/notify-me/internal/site/phenom"
 	"github.com/2miwon/notify-me/internal/site/roundhr"
 	"github.com/2miwon/notify-me/internal/site/sap"
 	"github.com/2miwon/notify-me/internal/site/shopify"
 	"github.com/2miwon/notify-me/internal/site/wanted"
 	"github.com/2miwon/notify-me/internal/site/woowahan"
 	"github.com/2miwon/notify-me/internal/site/workday"
+	"github.com/2miwon/notify-me/internal/site/yello"
 	"github.com/2miwon/notify-me/internal/site/yonsei"
 	"github.com/2miwon/notify-me/internal/store"
 )
+
+// suspiciousEmptyThreshold is how many stored, unexpired postings a site
+// must have for an empty fetch to be treated as a probable breakage
+// rather than everything genuinely closing.
+const suspiciousEmptyThreshold = 3
 
 func main() {
 	if err := run(); err != nil {
@@ -329,6 +340,25 @@ func run() error {
 			// still live but just weren't reached.
 			log.Printf("skipping expiry sweep for %s: fetch had errors", a.Name())
 			continue
+		}
+		// An adapter that suddenly returns nothing, with no error, while
+		// the store still holds several of its postings is far more often
+		// a silently broken parser (a site redesign — SAP, 2026-10) than
+		// every role closing at once. Don't let that wipe the history;
+		// flag it instead. A site whose last posting or two closed still
+		// expires normally.
+		if len(postings) == 0 {
+			stored := 0
+			for _, rec := range existing {
+				if rec.Site == a.Name() && !rec.Expired {
+					stored++
+				}
+			}
+			if stored >= suspiciousEmptyThreshold {
+				log.Printf("ERROR: %s: fetched 0 postings but %d are stored — skipping expiry sweep (adapter may be broken)", a.Name(), stored)
+				siteErrs = append(siteErrs, fmt.Errorf("%s: suspicious empty fetch", a.Name()))
+				continue
+			}
 		}
 
 		for url, rec := range existing {
@@ -661,6 +691,68 @@ func buildAdapters(cfg *config.Config) []site.Adapter {
 	if sc, ok := cfg.Sites["bucketplace"]; ok {
 		adapters = append(adapters, bucketplace.New(sc.BucketplaceDevOnly))
 	}
+	if sc, ok := cfg.Sites["mckinsey"]; ok {
+		adapters = append(adapters, mckinsey.New(sc.McKinseyCity, sc.McKinseyDevOnly))
+	}
+	var phenomNames []string
+	for name, sc := range cfg.Sites {
+		if sc.PhenomHost != "" {
+			phenomNames = append(phenomNames, name)
+		}
+	}
+	sort.Strings(phenomNames)
+	for _, name := range phenomNames {
+		sc := cfg.Sites[name]
+		adapters = append(adapters, phenom.New(name, sc.PhenomCompany, sc.PhenomHost, sc.PhenomLang, sc.PhenomLangPath, sc.PhenomCountry, sc.PhenomDevOnly))
+	}
+	if sc, ok := cfg.Sites["goldman"]; ok {
+		var parts []site.Adapter
+		for _, country := range orOne(sc.GoldmanCountries, sc.GoldmanCountry) {
+			parts = append(parts, goldman.New(country, sc.GoldmanDevOnly))
+		}
+		adapters = append(adapters, site.Multi("goldman", parts...))
+	}
+	var yelloNames []string
+	for name, sc := range cfg.Sites {
+		if sc.YelloHost != "" {
+			yelloNames = append(yelloNames, name)
+		}
+	}
+	sort.Strings(yelloNames)
+	for _, name := range yelloNames {
+		sc := cfg.Sites[name]
+		adapters = append(adapters, yello.New(name, sc.YelloCompany, sc.YelloHost, sc.YelloBoardID, sc.YelloLocations, sc.YelloDevOnly))
+	}
+	var oracleNames []string
+	for name, sc := range cfg.Sites {
+		if sc.OracleHCMHost != "" {
+			oracleNames = append(oracleNames, name)
+		}
+	}
+	sort.Strings(oracleNames)
+	for _, name := range oracleNames {
+		sc := cfg.Sites[name]
+		var parts []site.Adapter
+		for _, id := range orOne(sc.OracleHCMLocationIDs, sc.OracleHCMLocationID) {
+			parts = append(parts, oraclehcm.New(name, sc.OracleHCMCompany, sc.OracleHCMHost, sc.OracleHCMSite, id, sc.OracleHCMDevOnly))
+		}
+		adapters = append(adapters, site.Multi(name, parts...))
+	}
+	var pcsxNames []string
+	for name, sc := range cfg.Sites {
+		if sc.PCSXHost != "" {
+			pcsxNames = append(pcsxNames, name)
+		}
+	}
+	sort.Strings(pcsxNames)
+	for _, name := range pcsxNames {
+		sc := cfg.Sites[name]
+		var parts []site.Adapter
+		for _, loc := range orOne(sc.PCSXLocations, sc.PCSXLocation) {
+			parts = append(parts, pcsx.New(name, sc.PCSXCompany, sc.PCSXHost, sc.PCSXDomain, sc.PCSXQuery, loc, sc.PCSXDevOnly))
+		}
+		adapters = append(adapters, site.Multi(name, parts...))
+	}
 	// Workday sites are keyed by config name rather than hard-wired here:
 	// any entry with workday_host set is one. Sorted for a stable order.
 	var workdayNames []string
@@ -672,7 +764,15 @@ func buildAdapters(cfg *config.Config) []site.Adapter {
 	sort.Strings(workdayNames)
 	for _, name := range workdayNames {
 		sc := cfg.Sites[name]
-		adapters = append(adapters, workday.New(sc.WorkdayHost, sc.WorkdayTenant, sc.WorkdaySite, sc.WorkdayCompany, name, sc.WorkdaySearchText, sc.WorkdayLocations, sc.WorkdayDevOnly))
+		regions := sc.WorkdayRegions
+		if len(regions) == 0 {
+			regions = []config.WorkdayRegion{{Search: sc.WorkdaySearchText, Locations: sc.WorkdayLocations}}
+		}
+		var parts []site.Adapter
+		for _, r := range regions {
+			parts = append(parts, workday.New(sc.WorkdayHost, sc.WorkdayTenant, sc.WorkdaySite, sc.WorkdayCompany, name, r.Search, r.Locations, sc.WorkdayDevOnly))
+		}
+		adapters = append(adapters, site.Multi(name, parts...))
 	}
 	if _, ok := cfg.Sites["yonsei"]; ok && yonsei.Configured() {
 		adapters = append(adapters, yonsei.New())
@@ -748,7 +848,33 @@ func buildStore(ctx context.Context) (store.Store, error) {
 	}
 }
 
+// orOne returns list, or a one-element list of single when list is empty —
+// for config fields that grew a plural form beside the original singular.
+func orOne(list []string, single string) []string {
+	if len(list) > 0 {
+		return list
+	}
+	return []string{single}
+}
+
 func probe(adapters []site.Adapter, name string) error {
+	// PROBE_SITE=all: fetch every adapter (concurrently, like a real run)
+	// and print one summary line each — a health check for the registry.
+	if name == "all" {
+		results := fetchAll(adapters, 8)
+		sort.Slice(results, func(i, j int) bool { return results[i].adapter.Name() < results[j].adapter.Name() })
+		for _, r := range results {
+			status := "ok"
+			switch {
+			case r.err != nil:
+				status = "ERROR: " + r.err.Error()
+			case len(r.postings) == 0:
+				status = "empty"
+			}
+			fmt.Printf("%-18s %4d  %8s  %s\n", r.adapter.Name(), len(r.postings), r.duration.Round(100*time.Millisecond), status)
+		}
+		return nil
+	}
 	for _, a := range adapters {
 		if a.Name() != name {
 			continue

@@ -16,6 +16,7 @@ package notion
 //	Bookmarked            -- Checkbox (set by the macOS app)
 //	Hidden                -- Checkbox (set by the macOS app; hides the card from the feed)
 //	Applied               -- Checkbox (set by the macOS app when you've applied)
+//	Rejected              -- Checkbox (set by the macOS app when an application was turned down)
 //	Expired               -- Checkbox (set by the crawler when a posting drops out of
 //	                         a site's live listing)
 //	Employment Type       -- Select (optional; normalized across sites to
@@ -44,6 +45,7 @@ const (
 	PropBookmarked          = "Bookmarked"
 	PropHidden              = "Hidden"
 	PropApplied             = "Applied"
+	PropRejected            = "Rejected"
 	PropExpired             = "Expired"
 	PropEmploymentType      = "Employment Type"
 	PropCareerLevel         = "Career Level"

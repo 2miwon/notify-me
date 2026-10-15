@@ -45,6 +45,7 @@ struct ContentView: View {
     @State private var showSettings = false
     @State private var showBookmarkedOnly = false
     @State private var appliedFilter: AppliedFilter = .all
+    @State private var appliedStatus: AppliedStatus = .active
     @State private var searchText = ""
     @State private var employmentTypeFilter: Set<String> = []
     @State private var careerLevelFilter: Set<String> = []
@@ -175,7 +176,9 @@ struct ContentView: View {
                     } else if let errorMessage {
                         errorView(errorMessage)
                     } else {
-                        if jobsPresentation == .board {
+                        if appliedFilter == .appliedOnly {
+                            appliedCollection
+                        } else if jobsPresentation == .board {
                             board
                         } else {
                             mixedList
@@ -237,6 +240,7 @@ struct ContentView: View {
                     onOpen: { openPosting(posting) },
                     onToggleBookmark: { toggle(posting, .bookmarked) },
                     onToggleApplied: { toggle(posting, .applied) },
+                    onToggleRejected: { toggle(posting, .rejected) },
                     onToggleHidden: {
                         toggle(posting, .hidden)
                         detailPostingID = nil // it just vanished from the board
@@ -509,31 +513,65 @@ struct ContentView: View {
     }
 
     /// Every applied-to posting in one place, across sites and regardless
-    /// of per-site mutes — this view is about tracking applications, not
-    /// browsing a company's openings.
-    @ViewBuilder
+    /// of per-site mutes, as a full-width grid with status tabs — rather
+    /// than one narrow column pinned to the left.
     private var appliedCollection: some View {
         let applied = filteredPostings
-        if applied.isEmpty {
-            Text("아직 지원한 공고가 없어요 — 카드의 ✓ 버튼으로 지원 표시를 할 수 있어요")
-                .multilineTextAlignment(.center)
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, 24)
-                .padding(.top, 40)
-                .frame(maxWidth: .infinity)
-        } else {
-            SiteColumn(
-                site: "지원한 공고",
-                postings: applied,
-                showsSite: true,
-                onHideSite: nil,
-                onSelect: { detailPostingID = $0.id },
-                onToggleBookmark: { toggle($0, .bookmarked) },
-                onToggleApplied: { toggle($0, .applied) },
-                onToggleHidden: { toggle($0, .hidden) }
-            )
-            .equatable()
+        let active = applied.filter { !$0.rejected }
+        let rejected = applied.filter(\.rejected)
+        let shown: [JobPosting] = {
+            switch appliedStatus {
+            case .active: return active
+            case .rejected: return rejected
+            case .all: return applied
+            }
+        }()
+        return VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 12) {
+                Text("지원한 공고")
+                    .font(.title3.weight(.semibold))
+                Picker("", selection: $appliedStatus) {
+                    Text("진행 중 \(active.count)").tag(AppliedStatus.active)
+                    Text("불합격 \(rejected.count)").tag(AppliedStatus.rejected)
+                    Text("전체 \(applied.count)").tag(AppliedStatus.all)
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .fixedSize()
+                Spacer()
+            }
+            if shown.isEmpty {
+                Text(applied.isEmpty
+                     ? "아직 지원한 공고가 없어요 — 카드의 ✓ 버튼으로 지원 표시를 할 수 있어요"
+                     : "여기에 해당하는 공고가 없어요")
+                    .multilineTextAlignment(.center)
+                    .foregroundStyle(.secondary)
+                    .padding(.top, 40)
+                    .frame(maxWidth: .infinity)
+                Spacer()
+            } else {
+                ScrollView {
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 320, maximum: 520), spacing: 12, alignment: .top)],
+                              alignment: .leading, spacing: 12) {
+                        ForEach(shown) { posting in
+                            JobCardView(
+                                posting: posting,
+                                showsSite: true,
+                                onSelect: { detailPostingID = posting.id },
+                                onToggleBookmark: { toggle(posting, .bookmarked) },
+                                onToggleApplied: { toggle(posting, .applied) },
+                                onToggleHidden: { toggle(posting, .hidden) },
+                                onToggleRejected: { toggle(posting, .rejected) }
+                            )
+                            .equatable()
+                        }
+                    }
+                    .padding(.bottom, 16)
+                }
+            }
         }
+        .padding(16)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
     private var emptyBoardMessage: some View {
@@ -658,6 +696,7 @@ struct ContentView: View {
         case .hidden: newValue = !posting.hidden
         case .seen: newValue = !posting.seen
         case .applied: newValue = !posting.applied
+        case .rejected: newValue = !posting.rejected
         }
         setChecked(posting, property, newValue)
     }
@@ -701,7 +740,7 @@ struct ContentView: View {
         recentWrites = recentWrites.filter { !$0.value.confirmed || now.timeIntervalSince($0.value.at) < 60 }
         guard !recentWrites.isEmpty else { return }
         for index in fetched.indices {
-            for property in [WritableProperty.seen, .bookmarked, .hidden, .applied] {
+            for property in [WritableProperty.seen, .bookmarked, .hidden, .applied, .rejected] {
                 if let write = recentWrites["\(fetched[index].id)|\(property.rawValue)"] {
                     apply(write.value, of: property, to: &fetched[index])
                 }
@@ -715,6 +754,7 @@ struct ContentView: View {
         case .bookmarked: return posting.bookmarked
         case .hidden: return posting.hidden
         case .applied: return posting.applied
+        case .rejected: return posting.rejected
         }
     }
 
@@ -724,6 +764,7 @@ struct ContentView: View {
         case .bookmarked: posting.bookmarked = value
         case .hidden: posting.hidden = value
         case .applied: posting.applied = value
+        case .rejected: posting.rejected = value
         }
     }
 }
@@ -801,6 +842,9 @@ private struct SiteColumn: View, Equatable {
 /// badge, the filter control, and the detail view's button — so it reads
 /// as a single consistent state at a glance.
 private let appliedGreen = Color(red: 0.18, green: 0.72, blue: 0.42)
+/// Rejected applications: same layout as applied, but neutral and faded so
+/// live applications stand out.
+private let rejectedGray = Color(red: 0.55, green: 0.55, blue: 0.58)
 
 // MARK: - Card
 
@@ -815,6 +859,9 @@ struct JobCardView: View, Equatable {
     let onToggleBookmark: () -> Void
     let onToggleApplied: () -> Void
     let onToggleHidden: () -> Void
+    /// Shown only on applied cards; nil hides the control (board columns
+    /// leave it off to keep cards compact).
+    var onToggleRejected: (() -> Void)? = nil
 
     /// Seen-but-not-applied cards fade back; applied ones don't, since
     /// they're the ones worth tracking rather than ones already dismissed.
@@ -824,12 +871,23 @@ struct JobCardView: View, Equatable {
         Button(action: onSelect) {
             VStack(alignment: .leading, spacing: 6) {
                 if posting.applied {
-                    Label("지원 완료", systemImage: "checkmark.seal.fill")
-                        .font(.caption2.weight(.bold))
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 7)
-                        .padding(.vertical, 2)
-                        .background(appliedGreen, in: Capsule())
+                    HStack(spacing: 6) {
+                        Label(posting.rejected ? "불합격" : "지원 완료",
+                              systemImage: posting.rejected ? "xmark.seal.fill" : "checkmark.seal.fill")
+                            .font(.caption2.weight(.bold))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 7)
+                            .padding(.vertical, 2)
+                            .background(posting.rejected ? rejectedGray : appliedGreen, in: Capsule())
+                        if let onToggleRejected {
+                            Button(action: onToggleRejected) {
+                                Text(posting.rejected ? "불합격 취소" : "불합격 표시")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
                 }
                 HStack(alignment: .top) {
                     VStack(alignment: .leading, spacing: 2) {
@@ -902,17 +960,19 @@ struct JobCardView: View, Equatable {
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 10))
             .background(
-                posting.applied ? appliedGreen.opacity(0.12) : Color.clear,
+                posting.applied ? accent.opacity(0.12) : Color.clear,
                 in: RoundedRectangle(cornerRadius: 10)
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 10)
-                    .strokeBorder(posting.applied ? appliedGreen : Color.clear, lineWidth: 1.5)
+                    .strokeBorder(posting.applied ? accent : Color.clear, lineWidth: 1.5)
             )
-            .opacity(posting.expired ? 0.6 : 1)
+            .opacity(posting.expired || posting.rejected ? 0.6 : 1)
         }
         .buttonStyle(.plain)
     }
+
+    private var accent: Color { posting.rejected ? rejectedGray : appliedGreen }
 
     private func badge(_ text: String) -> some View {
         Text(text)
@@ -971,6 +1031,7 @@ private struct DetailView: View {
     let onOpen: () -> Void
     let onToggleBookmark: () -> Void
     let onToggleApplied: () -> Void
+    let onToggleRejected: () -> Void
     let onToggleHidden: () -> Void
     let onClose: () -> Void
 
@@ -1051,6 +1112,13 @@ private struct DetailView: View {
                     Label(posting.applied ? "지원 완료" : "지원함으로 표시",
                           systemImage: posting.applied ? "checkmark.seal.fill" : "checkmark.seal")
                         .foregroundStyle(posting.applied ? appliedGreen : Color.primary)
+                }
+                if posting.applied {
+                    Button(action: onToggleRejected) {
+                        Label(posting.rejected ? "불합격 취소" : "불합격 표시",
+                              systemImage: posting.rejected ? "xmark.seal.fill" : "xmark.seal")
+                            .foregroundStyle(posting.rejected ? rejectedGray : Color.primary)
+                    }
                 }
                 Button(action: onToggleHidden) {
                     Label("Hide", systemImage: "eye.slash")

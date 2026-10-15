@@ -158,6 +158,7 @@ func (c *Client) CreatePosting(ctx context.Context, p job.Posting) error {
 		PropBookmarked: notionapi.CheckboxProperty{Checkbox: false},
 		PropHidden:     notionapi.CheckboxProperty{Checkbox: false},
 		PropApplied:    notionapi.CheckboxProperty{Checkbox: false},
+		PropRejected:   notionapi.CheckboxProperty{Checkbox: false},
 		PropExpired:    notionapi.CheckboxProperty{Checkbox: false},
 	}
 

@@ -59,3 +59,13 @@ careers.yanolja.co is a GreetingHR-built brand site whose "openings" query
 is always empty; its actual listings live on Workday
 (yanolja.wd102.myworkdayjobs.com / External_Yanolja), which is what the
 `yanolja` config entry crawls via internal/site/workday.
+
+## Bain & Company (bain.com/careers)
+
+The whole careers site sits behind a Cloudflare "Performing security
+verification" challenge — even a real browser lands on the interstitial
+first, and plain requests never get past it. Bain isn't on a public
+Greenhouse/Lever/Workday board either (checked the obvious slugs/tenants),
+so there's no unprotected API to use instead. Bypassing bot challenges is
+off the table, so skipped. (McKinsey and BCG, the other two MBB firms,
+both have public job APIs and are crawled.)

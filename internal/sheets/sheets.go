@@ -47,6 +47,9 @@ const (
 	// Visa Sponsorship was added after Applied so existing sheets retain all
 	// of their pre-existing column positions.
 	colVisaSponsorship
+	// Rejected is app-owned (set when an application was turned down);
+	// appended last for the same reason as Applied.
+	colRejected
 )
 
 const defaultSheetName = "Postings"
@@ -56,12 +59,12 @@ var header = []interface{}{
 	"Seen", "Bookmarked", "Hidden", "Expired",
 	"Employment Type", "Career Level", "Application Start", "Application Deadline",
 	"Description", "Min Years Experience",
-	"Minimum Degree", "Applied", "Visa Sponsorship",
+	"Minimum Degree", "Applied", "Visa Sponsorship", "Rejected",
 }
 
 // lastColumn is the header's last column letter, used to build A1:<lastColumn>
 // range references without hardcoding it in three places.
-const lastColumn = "S"
+const lastColumn = "T"
 
 type Client struct {
 	svc           *sheets.Service
@@ -253,6 +256,7 @@ func (c *Client) CreatePosting(ctx context.Context, p job.Posting) error {
 	}
 	row[colMinimumDegree] = p.MinimumDegree
 	row[colVisaSponsorship] = p.VisaSponsorship
+	row[colRejected] = false
 
 	_, err := c.svc.Spreadsheets.Values.Append(c.spreadsheetID, c.rangeRef("A:"+lastColumn), &sheets.ValueRange{
 		Values: [][]interface{}{row},

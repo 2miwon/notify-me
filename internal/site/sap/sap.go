@@ -22,8 +22,13 @@ import (
 	"github.com/2miwon/notify-me/internal/job"
 )
 
+// jobs.sap.com was relaunched (2026-10) on SmartRecruiters with only a
+// fraction of roles migrated so far; its old /go/... search paths now just
+// redirect to an unfiltered page this parser can't read (0 rows, no
+// error — which silently expired every stored SAP posting). The previous
+// site keeps the full listing with the same markup at careers.sap.com.
 const (
-	baseURL    = "https://jobs.sap.com"
+	baseURL    = "https://careers.sap.com"
 	userAgent  = "Mozilla/5.0 (compatible; notify-me-crawler/1.0)"
 	pageSize   = 25
 	dateLayout = "Jan 2, 2006"

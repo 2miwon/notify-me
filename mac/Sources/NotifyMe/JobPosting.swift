@@ -20,6 +20,10 @@ struct JobPosting: Identifiable, Hashable {
     var bookmarked: Bool
     var hidden: Bool
     var applied: Bool
+    /// Set by the user when an application was turned down — kept apart
+    /// from `applied` so the history stays, but the 지원한 공고 view can
+    /// separate live applications from closed ones.
+    var rejected: Bool
     let expired: Bool
 
     // Optional — empty/nil for a site whose adapter doesn't report this
@@ -110,6 +114,23 @@ enum AppliedFilter: String, CaseIterable, Identifiable {
         case .all: return "tray.full"
         case .notApplied: return "tray"
         case .appliedOnly: return "checkmark.seal"
+        }
+    }
+}
+
+/// Which applications the 지원한 공고 view shows.
+enum AppliedStatus: String, CaseIterable, Identifiable {
+    case active    // still waiting on a result
+    case rejected  // turned down
+    case all
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .active: return "진행 중"
+        case .rejected: return "불합격"
+        case .all: return "전체"
         }
     }
 }
