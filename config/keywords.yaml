@@ -417,6 +417,7 @@ sites:
       - "Hong Kong"
       - "Tokyo"
     mckinsey_dev_only: true
+    consulting_roles: true
 
   # WorldQuant — quant hedge fund, Greenhouse slug "worldquant". Has a
   # Seoul research office; Singapore is its big Asian tech hub.
@@ -446,6 +447,7 @@ sites:
       - "Hong Kong"
       - "Tokyo"
     yello_dev_only: true
+    consulting_roles: true
 
   bcg:
     phenom_host: "careers.bcg.com"
@@ -459,6 +461,7 @@ sites:
       - "Greater China"
       - "Japan"
     phenom_dev_only: true
+    consulting_roles: true
 
   # Global banks/asset managers: Seoul plus their Asian hubs (Singapore,
   # Hong Kong, Tokyo), where their engineering hiring actually happens.

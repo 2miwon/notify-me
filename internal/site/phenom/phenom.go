@@ -47,6 +47,10 @@ type Adapter struct {
 	// DevOnly keeps category/subCategory/title that look technical
 	// (job.LooksDev).
 	DevOnly bool
+	// ConsultingRoles also keeps consulting-track titles (Consultant,
+	// Associate, Project Leader, ...) that DevOnly would drop — see
+	// job.IsConsultingTitle. Set from the site's consulting_roles config.
+	ConsultingRoles bool
 
 	client *http.Client
 }
@@ -82,7 +86,7 @@ func (a *Adapter) Fetch() ([]job.Posting, error) {
 			return postings, fmt.Errorf("%s: search at %d: %w", a.SiteName, from, err)
 		}
 		for _, l := range jobs {
-			if a.DevOnly && !job.LooksDev(l.Title, l.Category, l.SubCategory) {
+			if a.DevOnly && !job.LooksDev(l.Title, l.Category, l.SubCategory) && !(a.ConsultingRoles && job.IsConsultingTitle(l.Title)) {
 				continue
 			}
 			postings = append(postings, a.toPosting(l))

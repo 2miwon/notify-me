@@ -39,6 +39,10 @@ type Adapter struct {
 	// QuantumBlack data roles, Tech & AI architects — rather than the
 	// generalist consulting programs.
 	DevOnly bool
+	// ConsultingRoles also keeps consulting-track titles (Consultant,
+	// Associate, Project Leader, ...) that DevOnly would drop — see
+	// job.IsConsultingTitle. Set from the site's consulting_roles config.
+	ConsultingRoles bool
 
 	client *http.Client
 }
@@ -82,7 +86,7 @@ func (a *Adapter) Fetch() ([]job.Posting, error) {
 		}
 		for _, d := range resp.Docs {
 			categories := append([]string{d.Interest}, d.Functions...)
-			if a.DevOnly && !job.LooksDev(d.Title, categories...) {
+			if a.DevOnly && !job.LooksDev(d.Title, categories...) && !(a.ConsultingRoles && job.IsConsultingTitle(d.Title)) {
 				continue
 			}
 			postings = append(postings, a.toPosting(d))

@@ -246,6 +246,12 @@ type SiteConfig struct {
 	PCSXLocations []string `yaml:"pcsx_locations"`
 	PCSXDevOnly   bool     `yaml:"pcsx_dev_only"`
 
+	// ConsultingRoles keeps a consulting firm's consulting-track roles
+	// (Consultant, Associate, Project Leader, ...) alongside its dev_only
+	// tech roles. Supported by the mckinsey, phenom (BCG) and yello
+	// (Kearney) adapters — see job.IsConsultingTitle.
+	ConsultingRoles bool `yaml:"consulting_roles"`
+
 	// GoogleDevOnly drops Google's sales/marketing titles — see
 	// internal/site/google.
 	GoogleDevOnly bool `yaml:"google_dev_only"`

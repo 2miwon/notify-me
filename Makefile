@@ -59,6 +59,9 @@ INSTALL_DIR ?= /Applications
 
 mac-install: mac-app
 	osascript -e 'quit app "NotifyMe"' 2>/dev/null || true
+	@# Wait for the old instance to exit, or `open` may hand off to it and
+	@# leave nothing running once it quits.
+	@for i in 1 2 3 4 5 6 7 8 9 10; do pgrep -x NotifyMe >/dev/null || break; sleep 0.5; done
 	rm -rf "$(INSTALL_DIR)/NotifyMe.app"
 	cp -R mac/.build/release-app/NotifyMe.app "$(INSTALL_DIR)/"
 	open "$(INSTALL_DIR)/NotifyMe.app"

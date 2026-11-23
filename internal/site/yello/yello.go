@@ -52,6 +52,10 @@ type Adapter struct {
 	// DevOnly keeps engineer/developer/data-scientist/architect titles
 	// (job.LooksDev) — Yello rows carry no department to go on.
 	DevOnly bool
+	// ConsultingRoles also keeps consulting-track titles (Consultant,
+	// Associate, Project Leader, ...) that DevOnly would drop — see
+	// job.IsConsultingTitle. Set from the site's consulting_roles config.
+	ConsultingRoles bool
 
 	client *http.Client
 }
@@ -98,7 +102,7 @@ func (a *Adapter) Fetch() ([]job.Posting, error) {
 			if !matchesAny(cities, a.Locations) {
 				continue
 			}
-			if a.DevOnly && !job.LooksDev(title) {
+			if a.DevOnly && !job.LooksDev(title) && !(a.ConsultingRoles && job.IsConsultingTitle(title)) {
 				continue
 			}
 			p := job.Posting{

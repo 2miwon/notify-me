@@ -62,10 +62,14 @@ is always empty; its actual listings live on Workday
 
 ## Bain & Company (bain.com/careers)
 
-The whole careers site sits behind a Cloudflare "Performing security
-verification" challenge — even a real browser lands on the interstitial
-first, and plain requests never get past it. Bain isn't on a public
-Greenhouse/Lever/Workday board either (checked the obvious slugs/tenants),
-so there's no unprotected API to use instead. Bypassing bot challenges is
-off the table, so skipped. (McKinsey and BCG, the other two MBB firms,
-both have public job APIs and are crawled.)
+The find-a-role page itself now loads without a challenge (it used to sit
+behind a Cloudflare "Performing security verification" interstitial), but
+it's a React shell with no postings in the HTML. The listing comes from
+`/en/api/jobsearch/keyword/get`, which answers a plain request with
+403 `{"error": "Forbidden: Direct API access is not allowed."}` and only
+serves requests that carry the site's own Referer. That's an explicit
+"no programmatic access" — faking the Referer to get past it is
+circumventing the restriction, the same line as solving a bot challenge,
+so Bain stays skipped. Not on a public Greenhouse/Lever/Ashby/Workday
+board either. (McKinsey and BCG, the other two MBB firms, both have
+public job APIs and are crawled.)

@@ -724,7 +724,9 @@ func buildAdapters(cfg *config.Config) []site.Adapter {
 	if sc, ok := cfg.Sites["mckinsey"]; ok {
 		var parts []site.Adapter
 		for _, city := range orOne(sc.McKinseyCities, sc.McKinseyCity) {
-			parts = append(parts, mckinsey.New(city, sc.McKinseyDevOnly))
+			a := mckinsey.New(city, sc.McKinseyDevOnly)
+			a.ConsultingRoles = sc.ConsultingRoles
+			parts = append(parts, a)
 		}
 		adapters = append(adapters, site.Multi("mckinsey", parts...))
 	}
@@ -739,7 +741,9 @@ func buildAdapters(cfg *config.Config) []site.Adapter {
 		sc := cfg.Sites[name]
 		var parts []site.Adapter
 		for _, country := range orOne(sc.PhenomCountries, sc.PhenomCountry) {
-			parts = append(parts, phenom.New(name, sc.PhenomCompany, sc.PhenomHost, sc.PhenomLang, sc.PhenomLangPath, country, sc.PhenomDevOnly))
+			a := phenom.New(name, sc.PhenomCompany, sc.PhenomHost, sc.PhenomLang, sc.PhenomLangPath, country, sc.PhenomDevOnly)
+			a.ConsultingRoles = sc.ConsultingRoles
+			parts = append(parts, a)
 		}
 		adapters = append(adapters, site.Multi(name, parts...))
 	}
@@ -759,7 +763,9 @@ func buildAdapters(cfg *config.Config) []site.Adapter {
 	sort.Strings(yelloNames)
 	for _, name := range yelloNames {
 		sc := cfg.Sites[name]
-		adapters = append(adapters, yello.New(name, sc.YelloCompany, sc.YelloHost, sc.YelloBoardID, sc.YelloLocations, sc.YelloDevOnly))
+		a := yello.New(name, sc.YelloCompany, sc.YelloHost, sc.YelloBoardID, sc.YelloLocations, sc.YelloDevOnly)
+		a.ConsultingRoles = sc.ConsultingRoles
+		adapters = append(adapters, a)
 	}
 	var oracleNames []string
 	for name, sc := range cfg.Sites {

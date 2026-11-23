@@ -198,3 +198,46 @@ func IsDevCategory(category string) bool {
 	}
 	return false
 }
+
+// consultingTrackHints mark the consulting career track at a consulting
+// firm — from intern/analyst up to partner, under each firm's own names
+// (McKinsey's Business Analyst/Associate, BCG's Consultant/Project
+// Leader, Kearney's Associate/Summer Analyst).
+var consultingTrackHints = []string{
+	"consultant", "consulting", "business analyst", "associate", "project leader",
+	"engagement manager", "experienced hire", "lateral hiring", "summer analyst",
+	"partner", "principal", "talent pool", "컨설턴트",
+}
+
+// consultingSupportHints are the firm's own staff roles that share those
+// words: "Executive Assistant", "Planning & Analysis Associate Analyst",
+// "APAC Recruiting Senior Manager".
+var consultingSupportHints = []string{
+	"assistant", "coordinator", "administrator", "accountant", "counsel", "recruit",
+	"media relations", "creative", "planning & analysis", "planning and analysis",
+	"financial planning",
+}
+
+// IsConsultingTitle reports whether a title at a consulting firm is on
+// the consulting track rather than an internal support role. Only for
+// consulting firms: elsewhere "Associate" and "Principal" are job grades,
+// not consulting roles.
+func IsConsultingTitle(title string) bool {
+	lower := normalizeTitle(title)
+	for _, hint := range consultingSupportHints {
+		if strings.Contains(lower, hint) {
+			return false
+		}
+	}
+	for _, word := range words(lower) {
+		if word == "hr" {
+			return false
+		}
+	}
+	for _, hint := range consultingTrackHints {
+		if strings.Contains(lower, hint) {
+			return true
+		}
+	}
+	return false
+}

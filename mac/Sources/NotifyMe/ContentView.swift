@@ -14,13 +14,53 @@ private enum Workspace: String, CaseIterable, Identifiable {
     }
 }
 
-private enum JobsPresentation: String, CaseIterable, Identifiable {
+private enum JobsPresentation: String, CaseIterable, Identifiable, Codable {
     case board
     case list
 
     var id: Self { self }
     var label: String { self == .board ? "회사별" : "전체" }
     var icon: String { self == .board ? "rectangle.split.3x1" : "list.bullet" }
+}
+
+extension AppliedFilter: Codable {}
+extension PostingSortOrder: Codable {}
+extension ExperienceFilter: Codable {}
+extension DeadlineFilter: Codable {}
+extension RecencyFilter: Codable {}
+
+/// The filter bar's selections, kept in UserDefaults so they survive a
+/// relaunch. The search text isn't saved — a stale query on launch would
+/// look like missing postings.
+private struct SavedFilters: Codable, Equatable {
+    var showBookmarkedOnly = false
+    var showUnseenOnly = false
+    var appliedFilter: AppliedFilter = .all
+    var employmentTypes: Set<String> = []
+    var careerLevels: Set<String> = []
+    var minimumDegrees: Set<String> = []
+    var visaSponsorships: Set<String> = []
+    var locations: Set<String> = []
+    var industries: Set<String> = []
+    var roles: Set<String> = []
+    var experience: ExperienceFilter = .all
+    var deadline: DeadlineFilter = .all
+    var recency: RecencyFilter = .all
+    var sortOrder: PostingSortOrder = .newest
+    var jobsPresentation: JobsPresentation = .board
+
+    private static let key = "savedFilters"
+
+    static func load() -> SavedFilters? {
+        guard let data = UserDefaults.standard.data(forKey: key) else { return nil }
+        return try? JSONDecoder().decode(SavedFilters.self, from: data)
+    }
+
+    func save() {
+        if let data = try? JSONEncoder().encode(self) {
+            UserDefaults.standard.set(data, forKey: Self.key)
+        }
+    }
 }
 
 struct RecentWrite {
@@ -297,6 +337,8 @@ struct ContentView: View {
             alignment: .topLeading
         )
         .background(WindowConfigurator())
+        .onAppear(perform: restoreFilters)
+        .onChange(of: savedFilters) { $0.save() }
         .task { await refreshLoop() }
         .onChange(of: workspace) { new in
             switchWorkspace(from: shownWorkspace, to: new)
@@ -903,6 +945,45 @@ struct ContentView: View {
 
     /// Swaps the on-screen list for the newly selected tab's (cached, then
     /// refreshed) and resets the filters that only make sense per tab.
+    private var savedFilters: SavedFilters {
+        SavedFilters(
+            showBookmarkedOnly: showBookmarkedOnly,
+            showUnseenOnly: showUnseenOnly,
+            appliedFilter: appliedFilter,
+            employmentTypes: employmentTypeFilter,
+            careerLevels: careerLevelFilter,
+            minimumDegrees: minimumDegreeFilter,
+            visaSponsorships: visaSponsorshipFilter,
+            locations: locationFilter,
+            industries: industryFilter,
+            roles: roleFilter,
+            experience: experienceFilter,
+            deadline: deadlineFilter,
+            recency: recencyFilter,
+            sortOrder: sortOrder,
+            jobsPresentation: jobsPresentation
+        )
+    }
+
+    private func restoreFilters() {
+        guard let saved = SavedFilters.load() else { return }
+        showBookmarkedOnly = saved.showBookmarkedOnly
+        showUnseenOnly = saved.showUnseenOnly
+        appliedFilter = saved.appliedFilter
+        employmentTypeFilter = saved.employmentTypes
+        careerLevelFilter = saved.careerLevels
+        minimumDegreeFilter = saved.minimumDegrees
+        visaSponsorshipFilter = saved.visaSponsorships
+        locationFilter = saved.locations
+        industryFilter = saved.industries
+        roleFilter = saved.roles
+        experienceFilter = saved.experience
+        deadlineFilter = saved.deadline
+        recencyFilter = saved.recency
+        sortOrder = saved.sortOrder
+        jobsPresentation = saved.jobsPresentation
+    }
+
     private func switchWorkspace(from old: Workspace, to new: Workspace) {
         postingsCache[old] = postings
         postings = postingsCache[new] ?? []
