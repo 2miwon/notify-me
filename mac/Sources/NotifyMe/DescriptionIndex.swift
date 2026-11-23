@@ -32,7 +32,12 @@ final class DescriptionIndex: ObservableObject {
     private static let requestGap: Duration = .milliseconds(400)
     private static let publishEvery = 20
 
-    init() {
+    /// One file per database, so pruning one workspace's bodies never
+    /// drops another's.
+    private let fileName: String
+
+    init(fileName: String = "descriptions.json") {
+        self.fileName = fileName
         load()
     }
 
@@ -134,16 +139,16 @@ final class DescriptionIndex: ObservableObject {
 
     // MARK: - Persistence
 
-    nonisolated private static var fileURL: URL? {
+    private var fileURL: URL? {
         guard let dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
             return nil
         }
         return dir.appendingPathComponent("NotifyMe", isDirectory: true)
-            .appendingPathComponent("descriptions.json")
+            .appendingPathComponent(fileName)
     }
 
     private func load() {
-        guard let url = Self.fileURL,
+        guard let url = fileURL,
               let data = try? Data(contentsOf: url),
               let saved = try? JSONDecoder().decode([String: String].self, from: data)
         else { return }
@@ -155,9 +160,10 @@ final class DescriptionIndex: ObservableObject {
     private func scheduleSave() {
         saveTask?.cancel()
         let snapshot = texts
+        let target = fileURL
         saveTask = Task.detached(priority: .utility) {
             try? await Task.sleep(for: .seconds(2))
-            guard !Task.isCancelled, let url = Self.fileURL else { return }
+            guard !Task.isCancelled, let url = target else { return }
             try? FileManager.default.createDirectory(
                 at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
             if let data = try? JSONEncoder().encode(snapshot) {

@@ -410,8 +410,26 @@ sites:
   # Bain isn't here: bain.com sits behind a Cloudflare bot challenge (see
   # internal/site/SKIPPED.md).
   mckinsey:
-    mckinsey_city: "Seoul"
+    # City names from McKinsey's own location list (Japan's are Tokyo/Osaka).
+    mckinsey_cities:
+      - "Seoul"
+      - "Singapore City"
+      - "Hong Kong"
+      - "Tokyo"
     mckinsey_dev_only: true
+
+  # WorldQuant — quant hedge fund, Greenhouse slug "worldquant". Has a
+  # Seoul research office; Singapore is its big Asian tech hub.
+  worldquant:
+    greenhouse_company_slug: "worldquant"
+    greenhouse_company: "WorldQuant"
+    greenhouse_locations:
+      - "Seoul"
+      - "Korea"
+      - "Singapore"
+      - "Hong Kong"
+      - "Tokyo"
+    greenhouse_dev_only: true
 
   # Kearney — Yello job board (kearney.recsolu.com). Tech roles sit under
   # "Kearney Activate" / Digital & Analytics; dev_only keeps the engineer/
@@ -434,7 +452,12 @@ sites:
     phenom_company: "BCG"
     phenom_lang: "en_global"
     phenom_lang_path: "global/en"
-    phenom_country: "Korea – Republic of Korea"
+    # Country facet values exactly as careers.bcg.com spells them.
+    phenom_countries:
+      - "Korea – Republic of Korea"
+      - "Singapore"
+      - "Greater China"
+      - "Japan"
     phenom_dev_only: true
 
   # Global banks/asset managers: Seoul plus their Asian hubs (Singapore,
@@ -522,6 +545,20 @@ sites:
     pcsx_company: "Qualcomm"
     pcsx_location: "Korea"
     pcsx_dev_only: true
+
+  # AMD — careers.amd.com is a Jibe site with a public JSON search API
+  # (internal/site/jibe). Seoul has a small software team; Singapore is
+  # mostly chip test/packaging, which dev_only plus the global
+  # exclude_keywords trim to the software/AI roles.
+  amd:
+    jibe_host: "careers.amd.com"
+    jibe_company: "AMD"
+    jibe_locations:
+      - "Korea"
+      - "Singapore"
+      - "Tokyo"
+      - "Hong Kong"
+    jibe_dev_only: true
 
   # FuriosaAI (퓨리오사에이아이) — Korean AI chip (NPU) unicorn. Its own
   # careers page (furiosa.ai/careers) is a static Webflow site with no
@@ -826,8 +863,11 @@ sites:
       - "Seoul, South Korea"
 
   # Exact supplied Google Careers filters: South Korea, Early,
-  # Intern/Apprentice, and Bachelor's. No job-title allow-list is used.
-  google: {}
+  # Intern/Apprentice, and Bachelor's. Most of that listing is sales
+  # (Account Strategist, Partner Manager); dev_only keeps engineer titles —
+  # Customer Engineer, Solutions Engineer, SWE.
+  google:
+    google_dev_only: true
 
   # Authenticated with YONSEI_ID/YONSEI_PW at runtime. Only the supplied
   # tabType=reco (추천채용) listing is crawled.
@@ -937,3 +977,24 @@ sites:
   #   # Pages of 20 postings to fetch per run. 0 = no cap, fetch the whole
   #   # listing every run — see the expiry-sweep note in README.md.
   #   max_pages: 0
+
+# 공모전·대회 sources — crawled by a separate run (PIPELINE=opportunities)
+# into their own Notion database (NOTION_OPPORTUNITIES_DATABASE_ID), shown
+# in the app's 공모전·대회 tab. None of the job filters above apply here.
+opportunities:
+  # 올콘 (all-con.co.kr), 진행중 contests. Codes from the site's own
+  # filter list — see internal/site/allcon's package doc.
+  allcon:
+    allcon_categories:
+      - "5" # 과학·공학·학술
+    allcon_subcategories:
+      - "29" # 과학
+      - "30" # 공학
+      - "31" # 개발
+    allcon_targets:
+      - "1" # 제한없음
+      - "2" # 일반인
+
+  # DACON (dacon.io) — AI/데이터 경진대회. Public list API; only
+  # competitions still open are kept. No filters needed.
+  dacon: {}

@@ -34,12 +34,21 @@ var hardNonDevTitleHints = []string{
 	"설비", "시설", "cx researcher", "security analyst",
 	"grc", "control assurance", "vendor security assurance", "governance",
 	"program manager", "project manager", "product marketing", "account manager",
+	// A PM or office role named after an engineering team ("Senior
+	// Product Manager (… Accounting Engineering)", "사무 보조 담당자 (…
+	// e-Commerce Engineering)") would otherwise pass on that team's name.
+	"product manager", "product design", "사무 보조", "사무보조", "부동산", "투자 전문가",
 	// Chip/silicon design-verification roles (NPU/ASIC hardware teams at
 	// companies like FuriosaAI) — distinct from genuine software-engineer
 	// titles that happen to work on chip-adjacent systems (keep "SoC
 	// Firmware", "NPU Management Interface" etc., which are software).
 	"design verification", "physical engineering", "signal integrity", "power integrity",
 	"signal/power integrity", "soc design", "chip architect", "hw system",
+	// Semiconductor test/manufacturing (AMD Singapore): system-level and
+	// ATE test, burn-in, failure analysis, yield, thermal, packaging.
+	"system level test", "slt", "burn-in", "ate npi", "ate product", "(ate)", "npi",
+	"fa & debug", "centerfa", "yield", "equipment engineer", "thermal", "serdes",
+	"physical design",
 	"양산",
 }
 
@@ -52,7 +61,8 @@ var nonDevTitleHints = []string{
 	"product manager", "product management", "program manager", "project manager", "product owner", "기획",
 	"designer", "design lead", "디자이너",
 	"associate partner", "talent", "policy", "risk and controls", "controls lead",
-	"risk engagement", "product development manager",
+	"risk engagement", "product development manager", "manager, product development",
+	"engagement manager", "client development", "client strategy", "delivery analyst",
 }
 
 // devTitleWords only count as whole words ("dba" inside another word is

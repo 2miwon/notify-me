@@ -1,4 +1,4 @@
-.PHONY: help build run notion-init fmt vet tidy check mac-build mac-run mac-app mac-open clean
+.PHONY: help build run notion-init fmt vet tidy check mac-build mac-run mac-app mac-open mac-install clean
 
 help:
 	@echo "Crawler (Go):"
@@ -15,6 +15,7 @@ help:
 	@echo "  make mac-run       swift run in mac/ (terminal foreground, rebuilds every time)"
 	@echo "  make mac-app       package mac/ into a real NotifyMe.app you can double-click"
 	@echo "  make mac-open      mac-app, then open it — closest to a normal app launch"
+	@echo "  make mac-install   mac-app, then copy it into /Applications (Launchpad/Spotlight)"
 	@echo ""
 	@echo "  make clean         remove build artifacts"
 
@@ -49,6 +50,18 @@ mac-app:
 
 mac-open: mac-app
 	open mac/.build/release-app/NotifyMe.app
+
+# Launchpad and Finder's Applications list only show apps that live in an
+# Applications folder; mac-app/mac-open leave the bundle inside mac/.build.
+# Override with `make mac-install INSTALL_DIR=~/Applications` if /Applications
+# isn't writable.
+INSTALL_DIR ?= /Applications
+
+mac-install: mac-app
+	osascript -e 'quit app "NotifyMe"' 2>/dev/null || true
+	rm -rf "$(INSTALL_DIR)/NotifyMe.app"
+	cp -R mac/.build/release-app/NotifyMe.app "$(INSTALL_DIR)/"
+	open "$(INSTALL_DIR)/NotifyMe.app"
 
 clean:
 	rm -rf bin mac/.build

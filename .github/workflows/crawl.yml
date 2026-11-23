@@ -72,3 +72,30 @@ jobs:
             echo "::error::Crawler exited before finishing a run (config/store setup failure) — see the log."
             exit "$exit_code"
           fi
+
+      # 공모전·대회 (config `opportunities:`) into their own database. Skipped
+      # until NOTION_OPPORTUNITIES_DATABASE_ID is set; a failure here never
+      # fails the job crawl above.
+      - name: Run opportunities crawler
+        if: ${{ always() }}
+        continue-on-error: true
+        env:
+          PIPELINE: opportunities
+          STORE_BACKEND: ${{ secrets.STORE_BACKEND }}
+          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+          NOTION_OPPORTUNITIES_DATABASE_ID: ${{ secrets.NOTION_OPPORTUNITIES_DATABASE_ID }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          GOOGLE_SHEETS_SPREADSHEET_ID: ${{ secrets.GOOGLE_SHEETS_SPREADSHEET_ID }}
+        run: |
+          if [ "${STORE_BACKEND:-notion}" = "notion" ] && [ -z "$NOTION_OPPORTUNITIES_DATABASE_ID" ]; then
+            echo "::notice::NOTION_OPPORTUNITIES_DATABASE_ID not set — skipping the 공모전·대회 crawl."
+            exit 0
+          fi
+          set +e
+          ./crawler 2>&1 | tee opportunities.log
+          while IFS= read -r line; do
+            if [[ "$line" == *"ERROR:"* ]]; then
+              echo "::warning::opportunities: ${line#*ERROR: }"
+            fi
+          done < opportunities.log
+          exit 0

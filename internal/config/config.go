@@ -185,23 +185,30 @@ type SiteConfig struct {
 	// internal/site/kream.
 	KreamDevOnly bool `yaml:"kream_dev_only"`
 
+	// allcon: all-con.co.kr filter codes — see internal/site/allcon.
+	AllconCategories    []string `yaml:"allcon_categories"`
+	AllconSubcategories []string `yaml:"allcon_subcategories"`
+	AllconTargets       []string `yaml:"allcon_targets"`
+
 	// shopify: location substring allow-list + DevOnly — see
 	// internal/site/shopify.
 	ShopifyLocations []string `yaml:"shopify_locations"`
 	ShopifyDevOnly   bool     `yaml:"shopify_dev_only"`
 
 	// mckinsey: city name from McKinsey's own job-search location list.
-	McKinseyCity    string `yaml:"mckinsey_city"`
-	McKinseyDevOnly bool   `yaml:"mckinsey_dev_only"`
+	McKinseyCity    string   `yaml:"mckinsey_city"`
+	McKinseyCities  []string `yaml:"mckinsey_cities"`
+	McKinseyDevOnly bool     `yaml:"mckinsey_dev_only"`
 
 	// phenom: any Phenom People career site (BCG) — see
 	// internal/site/phenom. Any sites: entry with phenom_host set becomes one.
-	PhenomHost     string `yaml:"phenom_host"`
-	PhenomCompany  string `yaml:"phenom_company"`
-	PhenomLang     string `yaml:"phenom_lang"`
-	PhenomLangPath string `yaml:"phenom_lang_path"`
-	PhenomCountry  string `yaml:"phenom_country"`
-	PhenomDevOnly  bool   `yaml:"phenom_dev_only"`
+	PhenomHost      string   `yaml:"phenom_host"`
+	PhenomCompany   string   `yaml:"phenom_company"`
+	PhenomLang      string   `yaml:"phenom_lang"`
+	PhenomLangPath  string   `yaml:"phenom_lang_path"`
+	PhenomCountry   string   `yaml:"phenom_country"`
+	PhenomCountries []string `yaml:"phenom_countries"`
+	PhenomDevOnly   bool     `yaml:"phenom_dev_only"`
 
 	// yello: any Yello (recsolu.com) job board (Kearney) — see
 	// internal/site/yello. Any sites: entry with yello_host set becomes one.
@@ -238,6 +245,17 @@ type SiteConfig struct {
 	// PCSXLocations crawls several locations as one site.
 	PCSXLocations []string `yaml:"pcsx_locations"`
 	PCSXDevOnly   bool     `yaml:"pcsx_dev_only"`
+
+	// GoogleDevOnly drops Google's sales/marketing titles — see
+	// internal/site/google.
+	GoogleDevOnly bool `yaml:"google_dev_only"`
+
+	// jibe: any Jibe career site (AMD) — see internal/site/jibe. Any
+	// sites: entry with jibe_host set becomes one, crawling each location.
+	JibeHost      string   `yaml:"jibe_host"`
+	JibeCompany   string   `yaml:"jibe_company"`
+	JibeLocations []string `yaml:"jibe_locations"`
+	JibeDevOnly   bool     `yaml:"jibe_dev_only"`
 
 	// workday: any Workday "myworkdayjobs.com" career site — see
 	// internal/site/workday for where host/tenant/site come from. Any
@@ -298,6 +316,10 @@ type Config struct {
 	// requirement always passes.
 	MinimumDegrees []string              `yaml:"minimum_degrees"`
 	Sites          map[string]SiteConfig `yaml:"sites"`
+	// Opportunities are 공모전·대회 sources, crawled by a separate run
+	// (PIPELINE=opportunities) into their own database. None of the job
+	// filters above apply to them.
+	Opportunities map[string]SiteConfig `yaml:"opportunities"`
 }
 
 func Load(path string) (*Config, error) {

@@ -15,9 +15,21 @@ import (
 
 const listURL = "https://www.google.com/about/careers/applications/jobs/results?location=South%20Korea&target_level=EARLY&target_level=INTERN_AND_APPRENTICE&degree=BACHELORS"
 
-type Adapter struct{ client *http.Client }
+type Adapter struct {
+	// DevOnly keeps only titles that read as technical roles
+	// (job.IsDevTitle) — Customer/Solutions Engineer, SWE — and drops the
+	// Account Strategist / Partner Manager sales roles that dominate
+	// Google Korea's early-career listing. The listing has no category
+	// to check, so the title is all there is.
+	DevOnly bool
 
-func New() *Adapter             { return &Adapter{client: &http.Client{Timeout: 30 * time.Second}} }
+	client *http.Client
+}
+
+func New(devOnly bool) *Adapter {
+	return &Adapter{DevOnly: devOnly, client: &http.Client{Timeout: 30 * time.Second}}
+}
+
 func (a *Adapter) Name() string { return "google" }
 
 func (a *Adapter) Fetch() ([]job.Posting, error) {
@@ -29,10 +41,17 @@ func (a *Adapter) Fetch() ([]job.Posting, error) {
 		return nil, err
 	}
 	var postings []job.Posting
+	// Cards read, including ones DevOnly drops — what the completeness
+	// check below must compare against the page's own total.
+	cards := 0
 	doc.Find("ul.spHGqe > li.lLd3Je").Each(func(_ int, card *goquery.Selection) {
 		title := clean(card.Find("h3.QJPWVe").First().Text())
 		href, ok := card.Find("a[href*='jobs/results/']").Last().Attr("href")
 		if !ok || title == "" {
+			return
+		}
+		cards++
+		if a.DevOnly && !job.IsDevTitle(title) {
 			return
 		}
 		u, err := url.Parse(href)
@@ -63,11 +82,11 @@ func (a *Adapter) Fetch() ([]job.Posting, error) {
 		p.MinYearsExperience = job.ExtractMinYearsExperience(p.Title + "\n" + p.Description)
 		postings = append(postings, p)
 	})
-	if len(postings) == 0 {
+	if cards == 0 {
 		return nil, fmt.Errorf("google: no job cards found")
 	}
-	if total := matchedCount(doc); total > len(postings) {
-		return nil, fmt.Errorf("google: fetched only %d of %d matched jobs; refusing an incomplete refresh", len(postings), total)
+	if total := matchedCount(doc); total > cards {
+		return nil, fmt.Errorf("google: fetched only %d of %d matched jobs; refusing an incomplete refresh", cards, total)
 	}
 	return postings, nil
 }

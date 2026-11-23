@@ -51,9 +51,26 @@ struct ContentView: View {
     @State private var careerLevelFilter: Set<String> = []
     @State private var minimumDegreeFilter: Set<String> = []
     @State private var visaSponsorshipFilter: Set<String> = []
+    @State private var locationFilter: Set<String> = []
+    @State private var industryFilter: Set<String> = []
+    @State private var roleFilter: Set<String> = []
+    @State private var experienceFilter: ExperienceFilter = .all
+    @State private var deadlineFilter: DeadlineFilter = .all
+    @State private var recencyFilter: RecencyFilter = .all
+    @State private var showUnseenOnly = false
+    /// Postings opened while 안 본 공고만 is on. They stay listed until the
+    /// toggle is turned off, so a card doesn't vanish the moment it's clicked.
+    @State private var seenWhileUnseenOnly: Set<String> = []
     @State private var sortOrder: PostingSortOrder = .newest
     @State private var detailPostingID: String?
-    @StateObject private var descriptionIndex = DescriptionIndex()
+    @StateObject private var jobDescriptions = DescriptionIndex()
+    @StateObject private var opportunityDescriptions = DescriptionIndex(fileName: "descriptions-opportunities.json")
+    /// Postings of the workspace not on screen, so switching tabs is
+    /// instant and doesn't lose the other tab's list.
+    @State private var postingsCache: [Workspace: [JobPosting]] = [:]
+    /// The workspace whose list `postings` currently holds (macOS 13's
+    /// onChange doesn't pass the old value).
+    @State private var shownWorkspace: Workspace = .jobs
     @State private var loadingDescriptionIDs: Set<String> = []
     @State private var workspace: Workspace = .jobs
     @State private var jobsPresentation: JobsPresentation = .board
@@ -93,6 +110,31 @@ struct ContentView: View {
             .sorted { degreeSortRank($0) < degreeSortRank($1) }
     }
 
+    /// 근무지 menu entries that some posting actually has, in menu order.
+    private var availableLocationGroups: [(country: String, cities: [String])] {
+        let present = postings.reduce(into: Set<String>()) { $0.formUnion($1.locationTags) }
+        return JobPosting.locationGroups
+            .filter { present.contains($0.country) }
+            .map { ($0.country, $0.cities.filter(present.contains)) }
+    }
+
+    private var availableRoles: [String] {
+        let present = postings.reduce(into: Set<String>()) { $0.formUnion($1.roles) }
+        return JobPosting.roleOrder.filter(present.contains)
+    }
+
+    /// How many of the 조건 menu's options are narrowing the list.
+    private var activeConditionCount: Int {
+        (experienceFilter != .all && !isOpportunities ? 1 : 0)
+            + (deadlineFilter != .all ? 1 : 0)
+            + (recencyFilter != .all ? 1 : 0)
+    }
+
+    private var availableIndustries: [String] {
+        let present = Set(postings.map(\.industry))
+        return JobPosting.industryOrder.filter(present.contains)
+    }
+
     private var availableVisaSponsorships: [String] {
         Set(postings.map(\.visaSponsorship).filter { !$0.isEmpty }).sorted()
     }
@@ -114,12 +156,39 @@ struct ContentView: View {
                 }
             }
             .filter { !showBookmarkedOnly || $0.bookmarked }
-            .filter { employmentTypeFilter.isEmpty || employmentTypeFilter.contains($0.employmentType) }
+            .filter { !showUnseenOnly || !$0.seen || seenWhileUnseenOnly.contains($0.id) }
+            .filter { deadlineFilter.matches($0) && recencyFilter.matches($0) }
             .filter { careerLevelFilter.isEmpty || careerLevelFilter.contains($0.careerLevel) }
-            .filter { minimumDegreeFilter.isEmpty || minimumDegreeFilter.contains($0.minimumDegree) }
-			.filter { visaSponsorshipFilter.isEmpty || visaSponsorshipFilter.contains($0.visaSponsorship) }
+            // The job-only menus are hidden on the opportunities tab, so
+            // their selections mustn't keep filtering it out of sight.
+            .filter { isOpportunities || matchesJobOnlyFilters($0) }
             .filter { matchesSearch($0) }
             .sorted(by: sortOrder.comparator)
+    }
+
+    private func matchesJobOnlyFilters(_ posting: JobPosting) -> Bool {
+        (employmentTypeFilter.isEmpty || employmentTypeFilter.contains(posting.employmentType))
+            && (minimumDegreeFilter.isEmpty || minimumDegreeFilter.contains(posting.minimumDegree))
+            && (visaSponsorshipFilter.isEmpty || visaSponsorshipFilter.contains(posting.visaSponsorship))
+            && (locationFilter.isEmpty || !locationFilter.isDisjoint(with: posting.locationTags))
+            && (industryFilter.isEmpty || industryFilter.contains(posting.industry))
+            && (roleFilter.isEmpty || !roleFilter.isDisjoint(with: posting.roles))
+            && experienceFilter.matches(posting)
+    }
+
+    private var isOpportunities: Bool { workspace == .opportunities }
+
+    private var descriptionIndex: DescriptionIndex {
+        isOpportunities ? opportunityDescriptions : jobDescriptions
+    }
+
+    /// Whether the visible workspace has a data source; Freelance has none yet.
+    private var workspaceHasSource: Bool {
+        switch workspace {
+        case .jobs: return credentials.isConfigured
+        case .opportunities: return credentials.isOpportunitiesConfigured
+        case .freelance: return false
+        }
     }
 
     private var trimmedSearch: String {
@@ -184,6 +253,15 @@ struct ContentView: View {
                             mixedList
                         }
                     }
+                } else if workspace == .opportunities && credentials.isOpportunitiesConfigured {
+                    filterBar
+                    if let errorMessage {
+                        errorView(errorMessage)
+                    } else if appliedFilter == .appliedOnly {
+                        appliedCollection
+                    } else {
+                        opportunityGrid
+                    }
                 } else {
                     workspaceEmptyState
                 }
@@ -220,6 +298,10 @@ struct ContentView: View {
         )
         .background(WindowConfigurator())
         .task { await refreshLoop() }
+        .onChange(of: workspace) { new in
+            switchWorkspace(from: shownWorkspace, to: new)
+            shownWorkspace = new
+        }
         .onReceive(NotificationCenter.default.publisher(for: .refreshPostings)) { _ in
             Task { await refresh() }
         }
@@ -312,6 +394,26 @@ struct ContentView: View {
             .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 8))
             .frame(maxWidth: 240)
 
+            if isOpportunities {
+                // Contests store 응모대상 in careerLevel (see internal/site/allcon).
+                multiSelectMenu(title: "응모대상", options: availableCareerLevels, selection: $careerLevelFilter)
+            } else {
+                jobOnlyFilters
+            }
+
+            conditionMenu
+
+            sortAndToggleControls
+        }
+        .padding(.horizontal, 16)
+        .padding(.bottom, 10)
+    }
+
+    @ViewBuilder
+    private var jobOnlyFilters: some View {
+            locationMenu
+            multiSelectMenu(title: "산업", options: availableIndustries, selection: $industryFilter)
+            multiSelectMenu(title: "직무", options: availableRoles, selection: $roleFilter)
             multiSelectMenu(title: "Employment", options: availableEmploymentTypes, selection: $employmentTypeFilter)
             multiSelectMenu(title: "Career", options: availableCareerLevels, selection: $careerLevelFilter)
             multiSelectMenu(
@@ -326,7 +428,10 @@ struct ContentView: View {
 				selection: $visaSponsorshipFilter,
 				displayName: visaSponsorshipLabel
 			)
+    }
 
+    @ViewBuilder
+    private var sortAndToggleControls: some View {
             Menu {
                 ForEach(PostingSortOrder.allCases) { order in
                     Button {
@@ -380,6 +485,16 @@ struct ContentView: View {
             .buttonStyle(.plain)
             .help("Show bookmarked only")
 
+            Button {
+                showUnseenOnly.toggle()
+                seenWhileUnseenOnly = []
+            } label: {
+                Image(systemName: showUnseenOnly ? "eye.slash.fill" : "eye.slash")
+            }
+            .buttonStyle(.plain)
+            .help("안 본 공고만 보기")
+
+            if !isOpportunities {
             Picker("공고 보기", selection: $jobsPresentation) {
                 ForEach(JobsPresentation.allCases) { presentation in
                     Image(systemName: presentation.icon)
@@ -391,6 +506,7 @@ struct ContentView: View {
             .labelsHidden()
             .frame(width: 64)
             .help(jobsPresentation == .board ? "전체 목록으로 보기" : "회사별 보드로 보기")
+            }
 
             if !credentials.mutedSites.isEmpty {
                 Menu {
@@ -404,9 +520,99 @@ struct ContentView: View {
             }
 
             Spacer()
+    }
+
+    /// 연차 / 마감 / 등록 — single-choice conditions grouped in one menu to
+    /// keep the filter bar short. 연차 is jobs-only.
+    private var conditionMenu: some View {
+        Menu {
+            if !isOpportunities {
+                Picker("연차", selection: $experienceFilter) {
+                    ForEach(ExperienceFilter.allCases) { Text($0.label).tag($0) }
+                }
+                .pickerStyle(.inline)
+            }
+            Picker("마감", selection: $deadlineFilter) {
+                ForEach(DeadlineFilter.allCases) { Text($0.label).tag($0) }
+            }
+            .pickerStyle(.inline)
+            Picker("등록", selection: $recencyFilter) {
+                ForEach(RecencyFilter.allCases) { Text($0.label).tag($0) }
+            }
+            .pickerStyle(.inline)
+            if activeConditionCount > 0 {
+                Divider()
+                Button("Clear") {
+                    experienceFilter = .all
+                    deadlineFilter = .all
+                    recencyFilter = .all
+                }
+            }
+        } label: {
+            Label(
+                activeConditionCount == 0 ? "조건" : "조건 (\(activeConditionCount))",
+                systemImage: "slider.horizontal.3"
+            )
+            .font(.caption)
         }
-        .padding(.horizontal, 16)
-        .padding(.bottom, 10)
+        .menuStyle(.borderlessButton)
+        .fixedSize()
+        .help("연차 상한, 마감 임박, 새 공고")
+    }
+
+    /// 근무지: a country entry keeps the whole country, a city entry under
+    /// it narrows to that city. Picking a country clears its cities (they'd
+    /// be redundant), so the count on the label stays meaningful.
+    private var locationMenu: some View {
+        Menu {
+            let groups = availableLocationGroups
+            if groups.isEmpty {
+                Text("None yet")
+            }
+            ForEach(groups, id: \.country) { group in
+                if group.cities.isEmpty {
+                    locationToggle(group.country, label: group.country)
+                } else {
+                    Section(group.country) {
+                        locationToggle(group.country, label: "\(group.country) 전체", clearing: group.cities)
+                        ForEach(group.cities, id: \.self) { city in
+                            locationToggle(city, label: city, clearing: [group.country])
+                        }
+                    }
+                }
+            }
+            if !locationFilter.isEmpty {
+                Divider()
+                Button("Clear") { locationFilter.removeAll() }
+            }
+        } label: {
+            Label(
+                locationFilter.isEmpty ? "근무지" : "근무지 (\(locationFilter.count))",
+                systemImage: "line.3.horizontal.decrease.circle"
+            )
+            .font(.caption)
+        }
+        .menuStyle(.borderlessButton)
+        .fixedSize()
+    }
+
+    private func locationToggle(_ tag: String, label: String, clearing others: [String] = []) -> some View {
+        Button {
+            if locationFilter.contains(tag) {
+                locationFilter.remove(tag)
+            } else {
+                locationFilter.insert(tag)
+                locationFilter.subtract(others)
+            }
+        } label: {
+            HStack {
+                Text(label)
+                if locationFilter.contains(tag) {
+                    Spacer()
+                    Image(systemName: "checkmark")
+                }
+            }
+        }
     }
 
     private func multiSelectMenu(
@@ -509,6 +715,37 @@ struct ContentView: View {
             .frame(maxWidth: 920, alignment: .leading)
             .padding(16)
             .frame(maxWidth: .infinity, alignment: .center)
+        }
+    }
+
+    /// 공모전·대회: one source today, so a full-width card grid rather than
+    /// one board column per site.
+    private var opportunityGrid: some View {
+        let shown = mixedPostings
+        return ScrollView {
+            if shown.isEmpty {
+                Text(postings.isEmpty ? "아직 수집된 공모전이 없어요 — 크롤러의 공모전 실행(PIPELINE=opportunities)이 한 번 돌면 채워져요." : emptyStateMessage)
+                    .multilineTextAlignment(.center)
+                    .foregroundStyle(.secondary)
+                    .padding(.top, 40)
+                    .frame(maxWidth: .infinity)
+            } else {
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 320, maximum: 520), spacing: 12, alignment: .top)],
+                          alignment: .leading, spacing: 12) {
+                    ForEach(shown) { posting in
+                        JobCardView(
+                            posting: posting,
+                            showsSite: false,
+                            onSelect: { detailPostingID = posting.id },
+                            onToggleBookmark: { toggle(posting, .bookmarked) },
+                            onToggleApplied: { toggle(posting, .applied) },
+                            onToggleHidden: { toggle(posting, .hidden) }
+                        )
+                        .equatable()
+                    }
+                }
+                .padding(16)
+            }
         }
     }
 
@@ -632,18 +869,27 @@ struct ContentView: View {
     }
 
     private func refresh() async {
-        guard credentials.isConfigured else { return }
+        let target = workspace
+        guard target != .freelance, workspaceHasSource else { return }
+        let opportunities = target == .opportunities
+        let index = opportunities ? opportunityDescriptions : jobDescriptions
         isLoading = true
         defer { isLoading = false }
         do {
-            let store = try credentials.makeStore()
+            let store = try credentials.makeStore(opportunities: opportunities)
             var fetched = try await store.fetchPostings()
             applyRecentWrites(to: &fetched)
-            postings = fetched
-            errorMessage = nil
+            // The user may have switched tabs while this was loading.
+            if workspace == target {
+                postings = fetched
+                errorMessage = nil
+            } else {
+                postingsCache[target] = fetched
+            }
             let credentials = credentials
-            descriptionIndex.index(fetched) { try credentials.makeStore() }
+            index.index(fetched) { try credentials.makeStore(opportunities: opportunities) }
         } catch {
+            guard workspace == target else { return }
             if postings.isEmpty {
                 errorMessage = error.localizedDescription
             } else {
@@ -655,6 +901,17 @@ struct ContentView: View {
         }
     }
 
+    /// Swaps the on-screen list for the newly selected tab's (cached, then
+    /// refreshed) and resets the filters that only make sense per tab.
+    private func switchWorkspace(from old: Workspace, to new: Workspace) {
+        postingsCache[old] = postings
+        postings = postingsCache[new] ?? []
+        errorMessage = nil
+        detailPostingID = nil
+        careerLevelFilter = []
+        Task { await refresh() }
+    }
+
     private func loadDescriptionIfNeeded(_ posting: JobPosting) async {
         if descriptionIndex.text(for: posting) != nil { return }
         if let existing = posting.description {
@@ -664,7 +921,7 @@ struct ContentView: View {
         loadingDescriptionIDs.insert(posting.id)
         defer { loadingDescriptionIDs.remove(posting.id) }
         do {
-            let store = try credentials.makeStore()
+            let store = try credentials.makeStore(opportunities: isOpportunities)
             descriptionIndex.set(try await store.fetchDescription(id: posting.id), for: posting)
         } catch {
             // Leave it unindexed: a transient failure shouldn't be cached
@@ -686,6 +943,7 @@ struct ContentView: View {
     /// viewing it again shouldn't reset "seen".
     private func markSeen(_ posting: JobPosting) {
         guard !posting.seen else { return }
+        if showUnseenOnly { seenWhileUnseenOnly.insert(posting.id) }
         setChecked(posting, .seen, true)
     }
 
@@ -712,10 +970,11 @@ struct ContentView: View {
         apply(value, of: property, to: &postings[index])
         let key = "\(posting.id)|\(property.rawValue)"
         recentWrites[key] = RecentWrite(value: value, confirmed: false, at: Date())
+        let opportunities = isOpportunities
 
         Task {
             do {
-                let store = try credentials.makeStore()
+                let store = try credentials.makeStore(opportunities: opportunities)
                 try await writeQueue.run {
                     try await store.setCheckbox(id: posting.id, property: property, value: value)
                 }

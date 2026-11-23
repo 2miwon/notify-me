@@ -107,16 +107,27 @@ final class CredentialsStore: ObservableObject {
     /// Builds the active JobStore from current settings. The ContentView
     /// never constructs NotionClient/GoogleSheetsStore directly — this is
     /// the one place that decides which backend is live.
-    func makeStore() throws -> JobStore {
+    func makeStore(opportunities: Bool = false) throws -> JobStore {
         switch backend {
         case .notion:
-            return NotionClient(token: notionToken, databaseID: notionJobsDatabaseID)
+            return NotionClient(token: notionToken,
+                                databaseID: opportunities ? notionOpportunitiesDatabaseID : notionJobsDatabaseID)
         case .sheets:
+            // The crawler's PIPELINE=opportunities run writes a sheet named
+            // "Opportunities" in the same spreadsheet by default.
             return try GoogleSheetsStore(
                 serviceAccountJSON: Data(sheetsServiceAccountJSON.utf8),
                 spreadsheetID: sheetsSpreadsheetID,
-                sheetName: sheetsSheetName
+                sheetName: opportunities ? "Opportunities" : sheetsSheetName
             )
+        }
+    }
+
+    /// Whether the 공모전·대회 tab has a database to read.
+    var isOpportunitiesConfigured: Bool {
+        switch backend {
+        case .notion: return !notionToken.isEmpty && !notionOpportunitiesDatabaseID.isEmpty
+        case .sheets: return isConfigured
         }
     }
 }

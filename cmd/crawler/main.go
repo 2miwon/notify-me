@@ -35,6 +35,7 @@ import (
 	"github.com/2miwon/notify-me/internal/notion"
 	"github.com/2miwon/notify-me/internal/sheets"
 	"github.com/2miwon/notify-me/internal/site"
+	"github.com/2miwon/notify-me/internal/site/allcon"
 	"github.com/2miwon/notify-me/internal/site/amazon"
 	"github.com/2miwon/notify-me/internal/site/apple"
 	"github.com/2miwon/notify-me/internal/site/ashby"
@@ -43,11 +44,13 @@ import (
 	"github.com/2miwon/notify-me/internal/site/bucketplace"
 	"github.com/2miwon/notify-me/internal/site/coupang"
 	"github.com/2miwon/notify-me/internal/site/daangn"
+	"github.com/2miwon/notify-me/internal/site/dacon"
 	"github.com/2miwon/notify-me/internal/site/dunamu"
 	"github.com/2miwon/notify-me/internal/site/goldman"
 	"github.com/2miwon/notify-me/internal/site/google"
 	"github.com/2miwon/notify-me/internal/site/greenhouse"
 	"github.com/2miwon/notify-me/internal/site/greetinghr"
+	"github.com/2miwon/notify-me/internal/site/jibe"
 	"github.com/2miwon/notify-me/internal/site/kakao"
 	"github.com/2miwon/notify-me/internal/site/kakaobank"
 	"github.com/2miwon/notify-me/internal/site/kream"
@@ -101,7 +104,18 @@ func run() error {
 		return err
 	}
 
-	adapters := buildAdapters(cfg)
+	// PIPELINE=opportunities crawls the 공모전·대회 sources into their own
+	// database instead of the job boards; same fetch/dedupe/expiry logic,
+	// but none of the job filters (keywords, employment type, degree, ...).
+	opportunities := os.Getenv("PIPELINE") == "opportunities"
+	var adapters []site.Adapter
+	filterCfg := cfg
+	if opportunities {
+		adapters = buildOpportunityAdapters(cfg)
+		filterCfg = &config.Config{}
+	} else {
+		adapters = buildAdapters(cfg)
+	}
 	if onlySite := os.Getenv("ONLY_SITE"); onlySite != "" {
 		adapters = filterAdapters(adapters, onlySite)
 	}
@@ -122,7 +136,7 @@ func run() error {
 	setupCtx, cancelSetup := context.WithTimeout(context.Background(), time.Minute)
 	defer cancelSetup()
 
-	st, err := buildStore(setupCtx)
+	st, err := buildStore(setupCtx, opportunities)
 	if err != nil {
 		return err
 	}
@@ -221,7 +235,7 @@ func run() error {
 
 		liveURLs := make(map[string]bool, len(postings))
 		for _, p := range postings {
-			if !cfg.MatchesLocation(p.Location) {
+			if !filterCfg.MatchesLocation(p.Location) {
 				continue
 			}
 			liveURLs[p.URL] = true
@@ -309,16 +323,16 @@ func run() error {
 				}
 				continue
 			}
-			if !cfg.MatchesKeywords(p.Title) || cfg.ExcludedByKeyword(p.Title) || cfg.ExcludedCompany(p.Company) {
+			if !filterCfg.MatchesKeywords(p.Title) || filterCfg.ExcludedByKeyword(p.Title) || filterCfg.ExcludedCompany(p.Company) {
 				continue
 			}
-			if !cfg.MatchesEmploymentType(p.EmploymentType) || !cfg.MatchesCareerLevel(p.CareerLevel) {
+			if !filterCfg.MatchesEmploymentType(p.EmploymentType) || !filterCfg.MatchesCareerLevel(p.CareerLevel) {
 				continue
 			}
-			if !cfg.MatchesYearsExperience(p.MinYearsExperience) {
+			if !filterCfg.MatchesYearsExperience(p.MinYearsExperience) {
 				continue
 			}
-			if !cfg.MatchesMinimumDegree(p.MinimumDegree) {
+			if !filterCfg.MatchesMinimumDegree(p.MinimumDegree) {
 				continue
 			}
 
@@ -491,6 +505,19 @@ func (p *writePacer) Stop() {
 	}
 }
 
+// buildOpportunityAdapters builds the 공모전·대회 sources (config
+// `opportunities:`), crawled with PIPELINE=opportunities.
+func buildOpportunityAdapters(cfg *config.Config) []site.Adapter {
+	var adapters []site.Adapter
+	if sc, ok := cfg.Opportunities["allcon"]; ok {
+		adapters = append(adapters, allcon.New(sc.AllconCategories, sc.AllconSubcategories, sc.AllconTargets))
+	}
+	if _, ok := cfg.Opportunities["dacon"]; ok {
+		adapters = append(adapters, dacon.New())
+	}
+	return adapters
+}
+
 func buildAdapters(cfg *config.Config) []site.Adapter {
 	var adapters []site.Adapter
 
@@ -509,8 +536,8 @@ func buildAdapters(cfg *config.Config) []site.Adapter {
 	if sc, ok := cfg.Sites["openai"]; ok {
 		adapters = append(adapters, openai.New(sc.OpenAIDepartments, sc.OpenAILocations))
 	}
-	if _, ok := cfg.Sites["google"]; ok {
-		adapters = append(adapters, google.New())
+	if sc, ok := cfg.Sites["google"]; ok {
+		adapters = append(adapters, google.New(sc.GoogleDevOnly))
 	}
 	if sc, ok := cfg.Sites["apple"]; ok {
 		adapters = append(adapters, apple.New(sc.AppleLocationCode, sc.MaxPages))
@@ -682,6 +709,9 @@ func buildAdapters(cfg *config.Config) []site.Adapter {
 		sc := cfg.Sites[name]
 		adapters = append(adapters, roundhr.New(sc.RoundhrCode, sc.RoundhrCompany, sc.RoundhrDevOnly))
 	}
+	if sc, ok := cfg.Sites["worldquant"]; ok {
+		adapters = append(adapters, greenhouse.New(sc.GreenhouseCompanySlug, sc.GreenhouseCompany, sc.GreenhouseLocations, sc.GreenhouseDevOnly))
+	}
 	if sc, ok := cfg.Sites["furiosa"]; ok {
 		adapters = append(adapters, greenhouse.New(sc.GreenhouseCompanySlug, sc.GreenhouseCompany, sc.GreenhouseLocations, sc.GreenhouseDevOnly))
 	}
@@ -692,7 +722,11 @@ func buildAdapters(cfg *config.Config) []site.Adapter {
 		adapters = append(adapters, bucketplace.New(sc.BucketplaceDevOnly))
 	}
 	if sc, ok := cfg.Sites["mckinsey"]; ok {
-		adapters = append(adapters, mckinsey.New(sc.McKinseyCity, sc.McKinseyDevOnly))
+		var parts []site.Adapter
+		for _, city := range orOne(sc.McKinseyCities, sc.McKinseyCity) {
+			parts = append(parts, mckinsey.New(city, sc.McKinseyDevOnly))
+		}
+		adapters = append(adapters, site.Multi("mckinsey", parts...))
 	}
 	var phenomNames []string
 	for name, sc := range cfg.Sites {
@@ -703,7 +737,11 @@ func buildAdapters(cfg *config.Config) []site.Adapter {
 	sort.Strings(phenomNames)
 	for _, name := range phenomNames {
 		sc := cfg.Sites[name]
-		adapters = append(adapters, phenom.New(name, sc.PhenomCompany, sc.PhenomHost, sc.PhenomLang, sc.PhenomLangPath, sc.PhenomCountry, sc.PhenomDevOnly))
+		var parts []site.Adapter
+		for _, country := range orOne(sc.PhenomCountries, sc.PhenomCountry) {
+			parts = append(parts, phenom.New(name, sc.PhenomCompany, sc.PhenomHost, sc.PhenomLang, sc.PhenomLangPath, country, sc.PhenomDevOnly))
+		}
+		adapters = append(adapters, site.Multi(name, parts...))
 	}
 	if sc, ok := cfg.Sites["goldman"]; ok {
 		var parts []site.Adapter
@@ -750,6 +788,21 @@ func buildAdapters(cfg *config.Config) []site.Adapter {
 		var parts []site.Adapter
 		for _, loc := range orOne(sc.PCSXLocations, sc.PCSXLocation) {
 			parts = append(parts, pcsx.New(name, sc.PCSXCompany, sc.PCSXHost, sc.PCSXDomain, sc.PCSXQuery, loc, sc.PCSXDevOnly))
+		}
+		adapters = append(adapters, site.Multi(name, parts...))
+	}
+	var jibeNames []string
+	for name, sc := range cfg.Sites {
+		if sc.JibeHost != "" {
+			jibeNames = append(jibeNames, name)
+		}
+	}
+	sort.Strings(jibeNames)
+	for _, name := range jibeNames {
+		sc := cfg.Sites[name]
+		var parts []site.Adapter
+		for _, loc := range orOne(sc.JibeLocations, "") {
+			parts = append(parts, jibe.New(name, sc.JibeCompany, sc.JibeHost, loc, sc.JibeDevOnly))
 		}
 		adapters = append(adapters, site.Multi(name, parts...))
 	}
@@ -813,7 +866,7 @@ func filterAdapters(adapters []site.Adapter, name string) []site.Adapter {
 	return nil
 }
 
-func buildStore(ctx context.Context) (store.Store, error) {
+func buildStore(ctx context.Context, opportunities bool) (store.Store, error) {
 	backend := os.Getenv("STORE_BACKEND")
 	if backend == "" {
 		backend = "notion"
@@ -828,6 +881,12 @@ func buildStore(ctx context.Context) (store.Store, error) {
 		if databaseID == "" {
 			databaseID = os.Getenv("NOTION_DATABASE_ID")
 		}
+		if opportunities {
+			databaseID = os.Getenv("NOTION_OPPORTUNITIES_DATABASE_ID")
+			if token == "" || databaseID == "" {
+				log.Fatal("NOTION_TOKEN and NOTION_OPPORTUNITIES_DATABASE_ID must be set for PIPELINE=opportunities")
+			}
+		}
 		if token == "" || databaseID == "" {
 			log.Fatal("NOTION_TOKEN and NOTION_JOBS_DATABASE_ID (or legacy NOTION_DATABASE_ID) must be set for STORE_BACKEND=notion")
 		}
@@ -840,6 +899,12 @@ func buildStore(ctx context.Context) (store.Store, error) {
 			log.Fatal("GOOGLE_SERVICE_ACCOUNT_JSON and GOOGLE_SHEETS_SPREADSHEET_ID must be set for STORE_BACKEND=sheets")
 		}
 		sheetName := os.Getenv("GOOGLE_SHEETS_SHEET_NAME")
+		if opportunities {
+			sheetName = os.Getenv("GOOGLE_SHEETS_OPPORTUNITIES_SHEET_NAME")
+			if sheetName == "" {
+				sheetName = "Opportunities"
+			}
+		}
 		return sheets.New(ctx, []byte(saJSON), spreadsheetID, sheetName)
 
 	default:

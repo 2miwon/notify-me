@@ -28,8 +28,8 @@ type Adapter struct {
 	// Company is the display name stored on each posting.
 	Company string
 	// Locations is a substring allow-list (OR'd, case-insensitive)
-	// against Greenhouse's own `location.name`. Empty means no
-	// restriction.
+	// against Greenhouse's own `location.name` and the posting's office
+	// names. Empty means no restriction.
 	Locations []string
 	// DevOnly, when true, drops postings whose title doesn't look like a
 	// software/engineering role. Greenhouse `departments` names vary too
@@ -67,6 +67,13 @@ type posting struct {
 	Departments []struct {
 		Name string `json:"name"`
 	} `json:"departments"`
+	// Offices is where the job actually sits when location.name is only
+	// a work mode — Cloudflare's Seoul roles say "Hybrid" there and
+	// "Seoul, South Korea" only here.
+	Offices []struct {
+		Name     string `json:"name"`
+		Location string `json:"location"`
+	} `json:"offices"`
 	AbsoluteURL    string `json:"absolute_url"`
 	Content        string `json:"content"`
 	FirstPublished string `json:"first_published"`
@@ -131,7 +138,8 @@ func (a *Adapter) Fetch() ([]job.Posting, error) {
 
 	var out []job.Posting
 	for _, p := range data.Jobs {
-		if !matchesLocation(p.Location.Name, a.Locations) {
+		location, ok := p.matchedLocation(a.Locations)
+		if !ok {
 			continue
 		}
 		title := strings.TrimSpace(p.Title)
@@ -159,7 +167,7 @@ func (a *Adapter) Fetch() ([]job.Posting, error) {
 			Title:       title,
 			Company:     a.Company,
 			URL:         p.AbsoluteURL,
-			Location:    p.Location.Name,
+			Location:    location,
 			PostedAt:    time.Now().UTC(),
 			Description: description,
 		}
@@ -183,6 +191,40 @@ func (a *Adapter) Fetch() ([]job.Posting, error) {
 		out = append(out, jp)
 	}
 	return out, nil
+}
+
+// matchedLocation checks location.name and then, only when that names
+// no place at all ("Hybrid", "Remote; In-Office"), each office against
+// the allow-list, returning the text to store. Offices aren't consulted
+// otherwise: Elastic files "United States"-only remote roles under a
+// "Distributed, Global" office, which would wrongly pass a "Global" match.
+func (p posting) matchedLocation(allowed []string) (string, bool) {
+	if matchesLocation(p.Location.Name, allowed) {
+		return p.Location.Name, true
+	}
+	if len(allowed) == 0 || !workModeOnly(p.Location.Name) {
+		return "", false
+	}
+	for _, o := range p.Offices {
+		if matchesLocation(o.Name, allowed) || matchesLocation(o.Location, allowed) {
+			if p.Location.Name == "" {
+				return o.Name, true
+			}
+			return o.Name + " (" + p.Location.Name + ")", true
+		}
+	}
+	return "", false
+}
+
+var workModeWords = strings.NewReplacer(
+	"hybrid", "", "remote", "", "in-office", "", "in office", "",
+	"onsite", "", "on-site", "", "distributed", "", ";", "", ",", "", "/", "",
+)
+
+// workModeOnly reports whether a location.name is just a work arrangement
+// with no city or country in it.
+func workModeOnly(location string) bool {
+	return strings.TrimSpace(workModeWords.Replace(strings.ToLower(location))) == ""
 }
 
 func matchesLocation(location string, allowed []string) bool {
